@@ -4,7 +4,7 @@ from meqtt.messages import Message
 
 def test_instantiation():
     @meqtt.message("/test/topic")
-    class ExampleMessage:
+    class ExampleMessage(meqtt.Message):
         value: int
 
     msg = ExampleMessage(42)

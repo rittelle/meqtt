@@ -1,9 +1,6 @@
-import abc
 import dataclasses
 import json
-
-from abc import ABC, abstractmethod
-from typing import Any, Dict
+from abc import ABC
 
 _message_classes = {}
 
@@ -15,10 +12,6 @@ class Message(ABC):
     """
 
     topic: str
-
-
-def _get_class_name(cls):
-    return f"{cls.__module__}.{cls.__name__}"
 
 
 def to_json(message: Message) -> str:
