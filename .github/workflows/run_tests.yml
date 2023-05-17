@@ -29,4 +29,4 @@ jobs:
         run: poetry install --only=test --no-root
 
       - name: Run pytest
-        run: pytest tests.py --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html
+        run: poetry run pytest tests --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html
