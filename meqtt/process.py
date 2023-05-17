@@ -40,6 +40,7 @@ class Process:
         if self.is_running:
             raise RuntimeError("Process is already running")
         self._connection = connection
+        await self._connection.register_process(self)
         await self.on_start()
 
     async def stop(self):
@@ -49,6 +50,8 @@ class Process:
             raise RuntimeError("Process is not running")
         await self.on_stop()
         self._kill_remaining_tasks()
+        assert self._connection is not None  # mostly to make mypy happy
+        await self._connection.deregister_process(self)
         self._connection = None
 
     @property
