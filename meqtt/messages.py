@@ -25,7 +25,10 @@ def to_json(message: Message) -> Tuple[str, str]:
 def from_json(topic: str, input: str) -> Message:
     # TODO: Handle non-trivial types
     # TODO: Error handling
-    message = json.loads(input)
+    try:
+        message = json.loads(input)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON: {exc.msg}") from exc
     try:
         cls = _message_classes[topic]
     except KeyError:
