@@ -9,7 +9,9 @@ def test_instantiation():
 
     msg = ExampleMessage(42)
 
-    msg2 = messages.from_json("/test/topic", messages.to_json(msg))
+    topic, data = messages.to_json(msg)
+    assert topic == "/test/topic"
+    msg2 = messages.from_json("/test/topic", data)
     assert msg2.topic == "/test/topic"
     assert msg2.value == 42
 
