@@ -29,7 +29,7 @@ jobs:
         run: poetry install --only=main,test --no-root
 
       - name: Run pytest
-        run: poetry run pytest tests --doctest-modules --junitxml=reports/pytest.xml --cov=meqtt --cov-report=html:reports/pytest-coverage.html
+        run: poetry run pytest tests --doctest-modules --junitxml=reports/pytest.xml --cov=meqtt --cov-report=html:reports/pytest-coverage --cov-report=lcov:reports/pytest-coverage.info
 
       - name: Upload Test Results
         if: always()
@@ -38,7 +38,8 @@ jobs:
           name: Test Results (Python ${{ matrix.python-version }})
           path: |
             reports/pytest.xml
-            reports/pytest-coverage.html
+            reports/pytest-coverage
+            reports/pytest-coverage.info
 
 
   publish-test-results:
@@ -80,10 +81,7 @@ jobs:
           name: Test Results (Python 3.11)
           path: artifacts
 
-      - name: List the artifactes
-        run: ls -R
-
-      - name: HTML Preview
-        uses: pavi2410/html-preview-action@v2
+      - name: Add the report to the summary
+        uses: livewing/lcov-job-summary@v1.0.0
         with:
-          html_file: "artifacts/pytest-coverage.html"
+          lcov: artifacts/pytest-coverage.info
