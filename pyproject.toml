@@ -8,7 +8,7 @@ authors = ["Your Name <you@example.com>"]
 python = "^3.11"
 gmqtt = "^0.6.12"
 
-[tool.poetry.group.dev.dependencies]
+[tool.poetry.group.test.dependencies]
 pytest = "^7.3.1"
 pytest-asyncio = "^0.21.0"
 
