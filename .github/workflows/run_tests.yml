@@ -82,6 +82,7 @@ jobs:
           path: artifacts
 
       - name: Add the report to the summary
-        uses: livewing/lcov-job-summary@v1.0.0
+        # uses: livewing/lcov-job-summary@v1.0.0  # until #29 is fixed
+        uses: rittelle/lcov-job-summary@4bf6988b2161055be609a05d1fd0b4fbeb79aec0
         with:
           lcov: artifacts/pytest-coverage.info
