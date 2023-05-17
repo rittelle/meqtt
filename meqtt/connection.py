@@ -33,8 +33,9 @@ class Connection(AsyncContextManager):
         await self._client.disconnect()
 
     async def publish(self, message: Message):
-        _log.debug("Publishing message on topic %s", message.topic)
-        self._client.publish(message.topic, to_json(message), qos=2)  # exactly once
+        topic, payload = message.topic, to_json(message)
+        _log.debug('Publishing message on topic "%s" with payload %s', topic, payload)
+        self._client.publish(topic, payload, qos=2)  # exactly once
 
     def _on_connect(self, client, flags, rc, properties):
         _log.info("Successfully connected to MQTT broker with result code %s", rc)

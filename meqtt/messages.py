@@ -1,6 +1,7 @@
 import dataclasses
 import json
 from abc import ABC
+from typing import Tuple
 
 _message_classes = {}
 
@@ -14,11 +15,11 @@ class Message(ABC):
     topic: str
 
 
-def to_json(message: Message) -> str:
+def to_json(message: Message) -> Tuple[str, str]:
     fields = dataclasses.asdict(message)
     string = {k: v for k, v in fields.items() if k != "topic"}
-    # TODO: Handle non-trivial types
-    return json.dumps(string)
+    # TODO: Handle members with non-trivial types
+    return message.topic, json.dumps(string)
 
 
 def from_json(topic: str, input: str) -> Message:
