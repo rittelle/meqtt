@@ -8,8 +8,9 @@ authors = ["Your Name <you@example.com>"]
 python = "^3.11"
 gmqtt = "^0.6.12"
 
-[tool.poetry.dev-dependencies]
-pytest = "^6.2"
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.3.1"
+pytest-asyncio = "^0.21.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
