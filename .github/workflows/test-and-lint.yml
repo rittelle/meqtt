@@ -1,4 +1,4 @@
-name: Run Tests
+name: Run Tests and Lint
 on: push
 
 jobs:
@@ -41,6 +41,35 @@ jobs:
             reports/pytest-coverage
             reports/pytest-coverage.info
 
+
+  lint:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11"]
+        poetry-version: ["1.4.2"]
+        # os: [ubuntu-18.04, macos-latest, windows-latest]
+        os: [ubuntu-22.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+
+      - uses: actions/checkout@v3
+
+      - name: Install poetry
+        uses: abatilo/actions-poetry@v2.1.6
+        with:
+          poetry-version: ${{ matrix.poetry-version }}
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: poetry
+
+      - name: Check the pyproject.toml file for errors
+        run: poetry check
+
+      - name: Check if the poetry.lock file is consistent with pyproject.toml
+        run: poetry lock --check
 
   publish-test-results:
     name: "Publish Tests Results"
