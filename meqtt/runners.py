@@ -15,8 +15,10 @@ async def launch_process(broker_host, process):
             await process.join()
             await process.stop()
     except Exception as exc:
-        _log.exception("Error while running process %s: ", process.name, exc)
-        process.kill()
+        _log.exception(
+            "Error while running process %s: %s (%s)", process.name, exc, str(type(exc))
+        )
+        await process.kill()
         raise
     else:
         _log.info("Process %s finished", process.name)
