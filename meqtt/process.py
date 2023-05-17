@@ -145,7 +145,12 @@ class Process:
 
 
 def task(method):
-    """Dekorator, der eine Methode als Task markiert."""
+    """Dekorator, der eine Methode als Task markiert.
 
+    Tasks müssen asynchron sein.
+    """
+
+    if not inspect.iscoroutinefunction(method):
+        raise ValueError(f"Tasks have to be async: {method.__name__}")
     method._meqtt_type = "task"
     return method
