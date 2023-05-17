@@ -26,7 +26,7 @@ jobs:
           cache: poetry
 
       - name: Install dependencies
-        run: poetry install --only=test --no-root
+        run: poetry install --only=main,test --no-root
 
       - name: Run pytest
         run: poetry run pytest tests --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html
