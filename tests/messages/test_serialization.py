@@ -1,8 +1,7 @@
 import meqtt
 from meqtt import messages
-from meqtt.messages import Message
 
-def test_instantiation():
+def test_serialization_identity():
     @meqtt.message("/test/topic")
     class ExampleMessage(meqtt.Message):
         value: int
