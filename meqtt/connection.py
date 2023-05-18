@@ -1,5 +1,6 @@
+from dataclasses import dataclass
 import logging
-from typing import AsyncContextManager, List, Type
+from typing import AsyncContextManager, List, Optional, Type
 
 import gmqtt
 
@@ -10,10 +11,27 @@ from meqtt.utils import get_type_name
 _log = logging.getLogger(__name__)
 
 
+@dataclass
+class ConnectionInfo:
+    """Where and how to connect to the MQTT broker."""
+
+    host: str
+    port: int = 1883
+    use_ssl: bool = False
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+    def __post_init__(self):
+        if self.username is None and self.password is not None:
+            raise ValueError(
+                "A password can only be set when a username is set as well"
+            )
+
+
 class Connection(AsyncContextManager):
-    def __init__(self, host, client_id):
+    def __init__(self, connection_info: ConnectionInfo, client_id: str):
         self._client = gmqtt.Client(client_id)
-        self._host = host
+        self._connection_info = connection_info
 
         # processes using this connection
         self._processes: List[Process] = []
@@ -31,8 +49,24 @@ class Connection(AsyncContextManager):
         await self.disconnect()
 
     async def connect(self):
-        _log.info("Connecting to MQTT broker on %s", self._host)
-        await self._client.connect(host=self._host)
+        _log.info(
+            "Connecting to MQTT broker on %s on port %d",
+            self._connection_info.host,
+            self._connection_info.port,
+        )
+        if self._connection_info.username is not None:
+            if self._connection_info.password is None:
+                _log.info("Logging in with username only")
+            else:
+                _log.info("Logging in with username and password")
+            self._client.set_auth_credentials(
+                self._connection_info.username, self._connection_info.password
+            )
+        await self._client.connect(
+            host=self._connection_info.host,
+            port=self._connection_info.port,
+            ssl=self._connection_info.use_ssl,
+        )
 
     async def disconnect(self):
         _log.info("Disconnecting from MQTT broker")

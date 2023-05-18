@@ -1,15 +1,14 @@
 import asyncio
 import logging
 
-from meqtt.connection import Connection
+from meqtt.connection import Connection, ConnectionInfo
 
 _log = logging.getLogger(__name__)
 
 
-async def launch_process(broker_host, process):
-    _log.info("Connecting to host %s", broker_host)
+async def launch_process(connection_info: ConnectionInfo, process):
     try:
-        async with Connection(broker_host, process.name) as connection:
+        async with Connection(connection_info, process.name) as connection:
             _log.info("Starting process %s", process.name)
             await process.start(connection)
             _log.info("Running processes until they exit")
@@ -28,5 +27,5 @@ async def launch_process(broker_host, process):
         _log.info("Process %s finished", process.name)
 
 
-def run_process(broker_host, process):
-    asyncio.run(launch_process(broker_host, process))
+def run_process(connection_info: ConnectionInfo, process):
+    asyncio.run(launch_process(connection_info, process))
