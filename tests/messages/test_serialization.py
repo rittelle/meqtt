@@ -1,6 +1,7 @@
 import meqtt
 from meqtt import messages
 
+
 def test_serialization_identity():
     @meqtt.message("/test/topic")
     class ExampleMessage(meqtt.Message):
@@ -13,6 +14,7 @@ def test_serialization_identity():
     msg2 = messages.from_json("/test/topic", data)
     assert msg2.topic == "/test/topic"
     assert msg2.value == 42
+
 
 def test_on_external_data():
     data = '{ "r": 254, "g": 21, "b": 100 }'

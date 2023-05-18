@@ -10,7 +10,7 @@ _log = logging.getLogger(__name__)
 async def test_different_messages_in_handlers():
     @meqtt.message("test")
     class TestMessage(meqtt.Message):
-        idx = 1 # allows to check for the correct message
+        idx = 1  # allows to check for the correct message
 
     @meqtt.message("test2")
     class TestMessage2(meqtt.Message):
@@ -21,7 +21,6 @@ async def test_different_messages_in_handlers():
             super().__init__()
             self.calls_to_test1 = 0
             self.calls_to_test2 = 0
-
 
         @meqtt.handler
         async def on_test(self, message: TestMessage):
@@ -43,6 +42,7 @@ async def test_different_messages_in_handlers():
     assert process.calls_to_test1 == 1
     assert process.calls_to_test2 == 1
     _log.debug("Process handlers executed successfully")
+
 
 @pytest.mark.asyncio
 async def test_same_message_in_handlers():

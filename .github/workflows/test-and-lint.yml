@@ -65,11 +65,17 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: poetry
 
+      - name: Install dependencies
+        run: poetry install --only=lint
+
       - name: Check the pyproject.toml file for errors
         run: poetry check
 
       - name: Check if the poetry.lock file is consistent with pyproject.toml
         run: poetry lock --check
+
+      - name: Check if the project is formatted properly
+        run: poetry run black --check meqtt tests
 
   publish-test-results:
     name: "Publish Tests Results"
