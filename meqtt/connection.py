@@ -64,14 +64,16 @@ class Connection(AsyncContextManager):
         self._client.publish(topic, payload, qos=2)  # exactly once
 
     async def register_process(self, process: Process):
-        message_classes = process.message_classes
+        message_classes = process.handled_message_classes
         _log.info(
             "Registering process %s which handles %d message types",
             process.name,
             len(message_classes),
         )
         for message_cls in message_classes:
-            if not any(message_cls in p.message_classes for p in self._processes):
+            if not any(
+                message_cls in p.handled_message_classes for p in self._processes
+            ):
                 await self.subscribe_to(message_cls)
             else:
                 _log.debug(
@@ -84,12 +86,14 @@ class Connection(AsyncContextManager):
         _log.info(
             "Deregistering process %s which handles message type %s",
             process.name,
-            len(process.message_classes),
+            len(process.handled_message_classes),
         )
 
         self._processes.remove(process)
-        for message_type in process.message_classes:
-            if not any(message_type in p.message_classes for p in self._processes):
+        for message_type in process.handled_message_classes:
+            if not any(
+                message_type in p.handled_message_classes for p in self._processes
+            ):
                 await self.unsubscribe_from(message_type)
             else:
                 _log.debug(

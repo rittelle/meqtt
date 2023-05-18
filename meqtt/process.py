@@ -1,46 +1,49 @@
 import asyncio
 import inspect
 import itertools
+import logging
 from collections import defaultdict
-from typing import List, Optional, Type
+from typing import List, Optional, Set, Type
 
 import meqtt.connection as connection  # module import to avoid circular import
 from meqtt.messages import Message
 
+_log = logging.getLogger(__name__)
+
 
 class Process:
     def __init__(self):
-        # Dict from task methods bound to self to running tasks of
-        # that method.
-        self.__running_tasks = {}
-        # Dict from message types to lists of handlers that take
-        # objects of those messages.  The handlers are bound to self.
-        self.__handlers = defaultdict(list)
-        # A list of tasks returned by handlers that are currently
-        # running.
-        self.__running_handlers: List[asyncio.Task] = []
         # The name of this process.
         # TODO: Make sure that this is unique.
         self.name = str(type(self).__name__)
-
+        # Dict from message types to lists of handlers that take
+        # objects of those messages.  The handlers are bound to self.
+        self.__handlers = defaultdict(list)
+        # Dict from task methods bound to self to running a set of
+        # tasks from that method.
+        self.__running_tasks = {}
+        # A set of tasks returned by handlers that are currently
+        # running.
+        self.__running_handlers: Set[asyncio.Task] = set()
         # The connection to the broker.
-        self._connection: Optional["connection.Connection"] = None
+        self.__connection: Optional["connection.Connection"] = None
 
-        self._scan_methods()
+        # process the decorated methods of self
+        self.__scan_methods()
 
     @property
     def is_running(self) -> bool:
         """Gibt an, ob der Prozess läuft."""
 
-        return self._connection is not None
+        return self.__connection is not None
 
     async def start(self, connection: "connection.Connection"):
         """Startet den Prozess."""
 
         if self.is_running:
             raise RuntimeError("Process is already running")
-        self._connection = connection
-        await self._connection.register_process(self)
+        self.__connection = connection
+        await self.__connection.register_process(self)
         await self.on_start()
 
     async def stop(self):
@@ -49,41 +52,63 @@ class Process:
         if not self.is_running:
             raise RuntimeError("Process is not running")
         await self.on_stop()
-        self._kill_remaining_tasks()
-        assert self._connection is not None  # mostly to make mypy happy
-        await self._connection.deregister_process(self)
-        self._connection = None
-
-    @property
-    def message_classes(self) -> List[Type[Message]]:
-        """Gibt alle Message-Klassen zurück, die dieser Prozess verarbeiten kann."""
-
-        return list(self.__handlers.keys())
+        await self.__cancel_remaining_tasks()
+        assert self.__connection is not None  # mostly to make mypy happy
+        await self.__connection.deregister_process(self)
+        self.__connection = None
 
     async def kill(self):
         """Beendet den Prozess, die Verbindung zum Broker ist nicht mehr vorhanden."""
 
         await self.on_kill()
-        self._kill_remaining_tasks()
-        self._connection = None
-
-    async def handle_message(self, message: Message):
-        """Verarbeitet eine Nachricht."""
-
-        message_type = type(message)
-        handlers = self.__handlers.get(message_type, [])
-        for handler in handlers:
-            await handler(message)
+        await self.__cancel_remaining_tasks()
+        self.__connection = None
 
     async def join(self):
         """Wartet auf das Beenden des Prozesses."""
 
-        tasks = list(
-            itertools.chain.from_iterable(
-                itertools.chain(self.__running_tasks.values(), self.__running_handlers)
+        while True:
+            running_tasks = list(
+                itertools.chain.from_iterable(self.__running_tasks.values())
             )
-        )
-        await asyncio.gather(*tasks)
+            running_handlers = self.__running_handlers
+
+            if running_tasks or running_handlers:
+                # We may encounter tasks that are already removed from
+                # self.__running_tasks or self.__running_handlers, but this
+                # does not matter.
+                # Especially handlers get awaited a second time.
+                # We wait for handlers to finish to make sure that handlers
+                # that are still running after the last task has finished
+                # get to finishe aswell.
+                for task in itertools.chain(running_tasks, running_handlers):
+                    await self.__let_task_finish(task)
+            else:
+                break
+
+    @property
+    def handled_message_classes(self) -> List[Type[Message]]:
+        """Gibt alle Message-Klassen zurück, die dieser Prozess verarbeiten kann."""
+
+        return list(self.__handlers.keys())
+
+    async def handle_message(self, message: Message) -> bool:
+        """Verarbeitet eine Nachricht.
+
+        Gibt True zurück, wenn die Nachricht erfolgreich verarbeitet
+        wurde, sonst False.
+        """
+
+        message_type = type(message)
+        handlers = self.__handlers.get(message_type, [])
+        for handler in handlers:
+            task = asyncio.create_task(handler(message))
+            self.__running_handlers.add(task)
+            task.add_done_callback(self.__running_handlers.discard)
+            # TODO: This could be optimized by running all handlers at
+            # once.  But I can't figure out how to handle
+            # CancelledError in that case.  At leas not at the moment.
+            await self.__let_task_finish(task)
 
     async def on_start(self):
         """Standard-Implementation, die alle Tasks startet."""
@@ -93,7 +118,11 @@ class Process:
                 await self.start_task(method)
 
     async def on_stop(self):
-        """Standard-Implementation, die alle Tasks beendet."""
+        """Standard-Implementation, die alle Tasks beendet.
+
+        Das da stop() die verbleibenden Tasks beendet, ist es nicht
+        notwendig, dies noch einmal hier zu tun.
+        """
 
     async def on_kill(self):
         """Standard-Implementation, die alle Tasks beendet."""
@@ -103,34 +132,21 @@ class Process:
 
         task = asyncio.create_task(method())
         assert method in self.__running_tasks
-        self.__running_tasks[method].append(task)
+        list_of_tasks = self.__running_tasks[method]
+        list_of_tasks.add(task)
+        task.add_done_callback(list_of_tasks.discard)
 
-    # async def stop_task(self, task):
-    #     """Stoppt den angegeben Task."""
+    async def stop_task(self, method):
+        """Stoppt den angegeben Task."""
 
-    #     self._stop_task(task, exit=True)
-
-    # async def _stop_task(self, task, exit: bool):
-    #     """Stoppt den angegeben Task und beendet die asyncio loop, wenn exit True ist."""
-
-    #     kill_task(self.__tasks(task))
-    #     self.__tasks[method_name] = None
-    #     if exit:
-    #         # wenn dies der letzte verbleibende Prozess ist, schließt sich die Verbindung.
-    #         self.__connection.report_shutdown()
-
-    # async def restart_task(self, task):
-    #     """Startet den angegeben Task neu."""
-
-    #     self.stop_task(task, exit=False)
-    #     self.start_task(task)
+        await self.__cancel_task(method)
 
     async def publish(self, message: Message):
         """Versendet ein Nachrichtobjekt"""
 
-        if self._connection is None:
+        if self.__connection is None:
             raise RuntimeError("The process has to be started first.")
-        await self._connection.publish(message)
+        await self.__connection.publish(message)
 
     # async def request(
     #     self, message_class, timeout=Union[float, datetime.timedelta]
@@ -160,7 +176,7 @@ class Process:
     #     """
 
     @staticmethod
-    def _get_message_type_for_handler(method):
+    def __get_message_type_for_handler(method):
         method_name = method.__name__
 
         # get the signature
@@ -197,7 +213,7 @@ class Process:
 
         return message_type
 
-    def _scan_methods(self):
+    def __scan_methods(self):
         """Scan the methods of the class for handlers and tasks."""
 
         for method_name in dir(self):
@@ -205,19 +221,42 @@ class Process:
             if hasattr(method, "_meqtt_type"):
                 match method._meqtt_type:
                     case "handler":
-                        message_type = self._get_message_type_for_handler(method)
+                        message_type = self.__get_message_type_for_handler(method)
                         # bind the method to self
                         bound_method = method.__get__(self, self.__class__)
                         self.__handlers[message_type].append(bound_method)
                     case "task":
-                        self.__running_tasks[method] = []
+                        self.__running_tasks[method] = set()
 
-    def _kill_remaining_tasks(self):
+    async def __let_task_finish(self, task: asyncio.Task) -> bool:
+        """Awaits a task and handles the exceptions.
+
+        Returns True if the task finished successfully, False otherwise.
+        """
+
+        try:
+            await task
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            _log.exception(f"Task {task.get_name()} raised an exception: {exc}")
+            return False
+        else:
+            return True
+
+    async def __cancel_task(self, method):
+        """Beendet alle Instanzen des angegeben Tasks."""
+
+        for task in self.__running_tasks[method]:
+            if not task.done():
+                task.cancel()
+                await self.__let_task_finish(task)
+
+    async def __cancel_remaining_tasks(self):
         """Beendet alle verbleibenden Tasks."""
 
-        # for method_name, task in self.__tasks.values():
-        #     if task is not None and task.is_active():
-        #         kill_task(task)
+        for method in self.__running_tasks:
+            await self.__cancel_task(method)
 
 
 def task(method):
