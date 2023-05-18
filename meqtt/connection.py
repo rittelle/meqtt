@@ -1,5 +1,6 @@
 import logging
-from typing import AsyncContextManager, Dict, List, Type
+from typing import AsyncContextManager, List, Type
+
 import gmqtt
 
 from meqtt.messages import Message, from_json, to_json
