@@ -149,17 +149,11 @@ class Process:
         if self.__connection is None:
             raise RuntimeError("The process has to be started first.")
         message_collection = MessageCollection(message_classes)
-        for message_class in message_classes:
-            await self.__connection.add_process_subscription(self, message_class)
-        _log.debug("Installing dynamic handler")
-        self.__message_collections.add(message_collection)
+        await self.__add_message_collection(message_collection)
         try:
             return await message_collection.wait_for_message()
         finally:
-            _log.debug("Uninstalling dynamic handler")
-            self.__message_collections.remove(message_collection)
-            for message_class in message_classes:
-                await self.__connection.remove_process_subscription(self, message_class)
+            await self.__remove_message_collection(message_collection)
 
     # async def collect_into(self, collection, message_class):
     #     """Sammelt die angegeben Nachricht (oder eine Liste von ihnen) in eine Datenstruktur.
@@ -185,3 +179,21 @@ class Process:
                     self.__handler_manager.register_handler(bound_method)
                 case "task":
                     self.__task_manager.register_task(bound_method)
+
+    async def __add_message_collection(self, message_collection):
+        """Add a message collection the internal collection and do some setup."""
+
+        assert self.__connection is not None
+        for message_class in message_collection.message_classes:
+            await self.__connection.add_process_subscription(self, message_class)
+        _log.debug("Installing dynamic handler")
+        self.__message_collections.add(message_collection)
+
+    async def __remove_message_collection(self, message_collection):
+        """Add a message collection the internal collection and do some cleanup."""
+
+        assert self.__connection is not None
+        _log.debug("Uninstalling dynamic handler")
+        self.__message_collections.remove(message_collection)
+        for message_class in message_collection.message_classes:
+            await self.__connection.remove_process_subscription(self, message_class)
