@@ -1,11 +1,15 @@
-from typing import Iterable, Optional, Type
+import logging
+from typing import Iterable, Optional, Set, Type
 
 import meqtt.connection as connection  # module import to avoid circular import
 from meqtt.messages import Message
 
 from .decorators import TYPE_ATTRIBUTE
 from .handler_manager import HandlerManager
+from .message_collection import MessageCollection
 from .task_manager import TaskManager
+
+_log = logging.getLogger(__name__)
 
 
 class Process:
@@ -16,6 +20,9 @@ class Process:
         # The connection to the broker.
         self.__connection: Optional["connection.Connection"] = None
 
+        # Message collections that are created dynamically, for example by
+        # wait_for().
+        self.__message_collections: Set[MessageCollection] = set()
         self.__task_manager = TaskManager()
         self.__handler_manager = HandlerManager()
 
@@ -60,12 +67,34 @@ class Process:
     def handled_message_classes(self) -> Iterable[Type[Message]]:
         """Gibt alle Message-Klassen zurück, die dieser Prozess verarbeiten kann."""
 
-        return self.__handler_manager.handled_message_types
+        # We use sets to avoid duplicates.
+        result = set(self.__handler_manager.handled_message_types)
+        for message_collection in self.__message_collections:
+            result |= message_collection.message_types
+        return result
 
     async def handle_message(self, message: Message):
         """Verarbeitet eine Nachricht."""
 
+        message_handled = False
         await self.__handler_manager.handle_message(message)
+        dynamic_handlers_run = 0
+        dynamic_handlers_total = len(self.__message_collections)
+        for message_collection in self.__message_collections:
+            if message_collection.try_push_message(message):
+                dynamic_handlers_run += 1
+        if dynamic_handlers_run > 0:
+            _log.debug(
+                "The message was handled by %d/%d dynamic handlers",
+                dynamic_handlers_run,
+                dynamic_handlers_total,
+            )
+            message_handled = True
+        else:
+            _log.debug(
+                "None of the %d dynamic handlers handled this message",
+                dynamic_handlers_total,
+            )
 
     async def on_start(self):
         """Standard-Implementation, die alle Tasks startet, welche noch nicht gestarted wurden."""
@@ -108,15 +137,29 @@ class Process:
 
     #     raise NotImplementedError()
 
-    # async def wait_for(
-    #     self, message_class, timeout=Union[float, datetime.timedelta]
-    # ) -> Any:
-    #     """Wartet, bis eine Nachricht empfangen wurde und gibt sie zurück.
+    async def wait_for(self, *message_classes: Type[Message]) -> Message:
+        """Waits for a message of the given type(s) to arrive and returns it.
 
-    #     Falls timeout vorher verstrichen ist, wirft die Methode eine exception.
-    #     """
+        If multiple message types are given, the first message of any of the
+        given types is returned.
 
-    #     raise NotImplementedError()
+        This can be used to receive messages in tasks.
+        """
+
+        if self.__connection is None:
+            raise RuntimeError("The process has to be started first.")
+        message_collection = MessageCollection(message_classes)
+        for message_class in message_classes:
+            await self.__connection.add_process_subscription(self, message_class)
+        _log.debug("Installing dynamic handler")
+        self.__message_collections.add(message_collection)
+        try:
+            return await message_collection.wait_for_message()
+        finally:
+            _log.debug("Uninstalling dynamic handler")
+            self.__message_collections.remove(message_collection)
+            for message_class in message_classes:
+                await self.__connection.remove_process_subscription(self, message_class)
 
     # async def collect_into(self, collection, message_class):
     #     """Sammelt die angegeben Nachricht (oder eine Liste von ihnen) in eine Datenstruktur.
