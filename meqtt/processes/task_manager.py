@@ -1,10 +1,9 @@
 import asyncio
-from dataclasses import field, dataclass
 import logging
-from typing import Awaitable, Callable, Coroutine, Dict, Iterable, Set
+from dataclasses import dataclass, field
+from typing import Callable, Coroutine, Dict, Iterable, Set
 
 from .asyncio_task_manager import AsyncioTaskManager
-
 
 _log = logging.getLogger(__name__)
 

@@ -1,8 +1,6 @@
 import asyncio
 import logging
-from typing import Awaitable, Optional, Set, Tuple, Type, TypeVar
-
-import pytest
+from typing import Set
 
 _log = logging.getLogger(__name__)
 

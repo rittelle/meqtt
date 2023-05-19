@@ -1,17 +1,11 @@
-import asyncio
-import inspect
-import itertools
-import logging
-from collections import defaultdict
-from typing import Iterable, List, Optional, Set, Type
+from typing import Iterable, Optional, Type
 
 import meqtt.connection as connection  # module import to avoid circular import
 from meqtt.messages import Message
-from .decorators import TYPE_ATTRIBUTE
-from .task_manager import TaskManager
-from .handler_manager import HandlerManager
 
-_log = logging.getLogger(__name__)
+from .decorators import TYPE_ATTRIBUTE
+from .handler_manager import HandlerManager
+from .task_manager import TaskManager
 
 
 class Process:
