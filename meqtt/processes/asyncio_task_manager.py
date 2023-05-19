@@ -67,6 +67,7 @@ class AsyncioTaskManager:
                             task_name,
                             exception,
                             str(type(exception)),
+                            exc_info=exception,
                         )
             except asyncio.CancelledError:
                 _log.debug("join() was cancelled, cancelling all managed tasks")
@@ -85,6 +86,7 @@ class AsyncioTaskManager:
                             task.get_name(),
                             exception,
                             str(type(exception)),
+                            exc_info=exception,
                         )
                 _log.debug("All managed tasks cancelled, propagating the cancellation")
                 raise
@@ -96,12 +98,13 @@ class AsyncioTaskManager:
 
         if task.cancelled:
             _log.debug("Task %s cancelled", task.get_name())
-        elif task.exception() is not None:
+        elif (exception := task.exception()) is not None:
             _log.exception(
                 "Task %s failed: %s (%s)",
                 task.get_name(),
                 task.exception(),
                 str(type(task.exception())),
+                exc_info=exception,
             )
         else:
             _log.debug("Task %s finished successfully", task.get_name())
@@ -116,7 +119,11 @@ async def run_task_and_log_exceptions(task: asyncio.Task):
         raise
     except Exception as exc:
         _log.exception(
-            "Error while running task %s: %s (%s)", task.get_name(), exc, str(type(exc))
+            "Error while running task %s: %s (%s)",
+            task.get_name(),
+            exc,
+            str(type(exc)),
+            exc_info=exc,
         )
         raise
     else:
