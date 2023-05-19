@@ -56,12 +56,23 @@ class HandlerManager:
         if handler in self._handlers:
             raise ValueError('Task "%s" is already registered', handler.get_name())
         self._handlers[handler] = HandlerData()
+        message_types = list(_get_handled_message_types(handler))
+        _log.debug(
+            'Registering handler "%s" for message types %s',
+            _get_handler_name(handler),
+            ", ".join(get_type_name(m) for m in message_types),
+        )
         for message_type in _get_handled_message_types(handler):
             self._message_handlers[message_type].add(handler)
 
     async def handle_message(self, message: Message):
         message_type = type(message)
-        handlers = self._message_handlers.get(message_type, [])
+        handlers = list(self._message_handlers.get(message_type, []))
+        _log.debug(
+            "Handling message in topic %s with %d handlers",
+            message.topic,
+            len(handlers),
+        )
         async with asyncio.TaskGroup() as tg:
             for handler in handlers:
                 handler_data = self._handlers[handler]
@@ -73,8 +84,14 @@ class HandlerManager:
     def cancel_all_handlers(self):
         """Cancel all tasks."""
 
-        for handler_data in self._handlers.values():
-            for task in handler_data.running_instances:
+        for handler, handler_data in self._handlers.items():
+            running_instances = list(handler_data.running_instances)
+            _log.debug(
+                'Cancelling %d instances of handler "%s"',
+                len(running_instances),
+                _get_handler_name(handler),
+            )
+            for task in running_instances:
                 task.cancel()
 
     async def join(self):

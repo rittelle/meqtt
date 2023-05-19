@@ -26,12 +26,14 @@ class AsyncioTaskManager:
             raise ValueError('Task "%s" is already registered', task.get_name())
         self.registered_tasks.add(task)
         task.add_done_callback(self._log_task_result)
+        _log.debug('Registered task "%s"', task.get_name())
 
     def cancel_task(self, task: asyncio.Task):
         """Cancel a tasks and await it to immediatly let it return."""
 
         if task not in self.registered_tasks:
             raise LookupError('Task "%s" is not registered', task.get_name())
+        _log.debug('Cancelling task "%s"', task.get_name())
         task.cancel()
         self._num_tasks_cancelled += 1
         # we let join() collect the cancelled task

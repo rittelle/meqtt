@@ -55,6 +55,7 @@ class TaskManager:
             raise ValueError("Task is not registered")
         name = _get_task_instance_name(task, task_data.instance_count)
         asyncio_task = asyncio.create_task(task(), name=name)
+        _log.debug('Started task "%s" as "%s"', _get_task_name(task), name)
         self._asyncio_task_manager.register_task(asyncio_task)
         task_data.running_instances.add(asyncio_task)
         task_data.instance_count += 1
@@ -64,18 +65,26 @@ class TaskManager:
 
         if task not in self._tasks:
             raise ValueError('Task "%s" is not registered', task.get_name())
+        running_instances = list(self._tasks[task].running_instances)
+        _log.debug(
+            'Cancelling %d instances of task "%s"',
+            len(running_instances),
+            _get_task_name(task),
+        )
         for asyncio_task in self._tasks[task].running_instances:
             self._asyncio_task_manager.cancel_task(asyncio_task)
 
     def cancel_all_tasks(self):
         """Cancel all tasks."""
 
+        _log.debug("Cancelling all running tasks")
         for task in self._tasks:
             self.cancel_task(task)
 
     async def join(self):
         """Wait for all tasks to finish."""
 
+        _log.debug("Waiting for all tasks to finish")
         await self._asyncio_task_manager.join()
 
 
