@@ -105,7 +105,7 @@ class Connection(AsyncContextManager):
             len(message_classes),
         )
         for message_cls in message_classes:
-            await self.add_process_subsscription(process, message_cls)
+            await self.add_process_subscription(process, message_cls)
         self._processes.append(process)
 
     async def deregister_process(self, process: Process):
@@ -119,7 +119,7 @@ class Connection(AsyncContextManager):
         for message_type in process.handled_message_classes:
             await self._unsubscribe_from_if_not_needed(message_type)
 
-    async def add_process_subsscription(
+    async def add_process_subscription(
         self, process: Process, message_cls: Type[Message]
     ):
         if process not in self._processes:
