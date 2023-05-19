@@ -38,13 +38,8 @@ async def test_wait_for():
             assert await self.wait_for(MessageA) is message_a2
             _log.debug("Message a2 received, done")
 
-    async def no_op():
-        pass
-
     process = AProcess()
     connection = MagicMock(spec_set=meqtt.Connection)
-    connection.add_process_subscription.return_value = no_op()
-    connection.remove_process_subscription.return_value = no_op()
 
     async def push_message():
         await asyncio.sleep(0.01)  # make sure that task1 is ready.
@@ -71,3 +66,8 @@ async def test_wait_for():
 
     async with asyncio.timeout(0.1):
         await asyncio.gather(push_message(), run_process())
+
+    # check the calls to the mock methods
+    # Subscriptions / unsubscriptions are done for each wait_for() call
+    assert connection.add_process_subscription.call_count == 3
+    assert connection.remove_process_subscription.call_count == 3
