@@ -98,7 +98,7 @@ class Connection(AsyncContextManager):
         self._client.publish(topic, payload, qos=2)  # exactly once
 
     async def register_process(self, process: Process):
-        message_classes = process.handled_message_classes
+        message_classes = list(process.handled_message_classes)
         _log.info(
             "Registering process %s which handles %d message types",
             process.name,
@@ -109,15 +109,17 @@ class Connection(AsyncContextManager):
         self._processes.append(process)
 
     async def deregister_process(self, process: Process):
+        message_classes = list(process.handled_message_classes)
         _log.info(
             "Deregistering process %s which handles message type %s",
             process.name,
-            len(process.handled_message_classes),
+            len(message_classes),
         )
 
         self._processes.remove(process)
-        for message_type in process.handled_message_classes:
-            await self._unsubscribe_from_if_not_needed(message_type)
+        for message_type in message_classes:
+            if not self._is_message_type_subscription_required(message_type):
+                await self.unsubscribe_from(message_type)
 
     async def add_process_subscription(
         self, process: Process, message_cls: Type[Message]
