@@ -85,7 +85,7 @@ async def test_async_cancellation():
 
     # a message arrives during the await
     async def push_message():
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.10)
         message_collection.push_message(message_a)
 
     async def wait_for_message():
@@ -93,22 +93,30 @@ async def test_async_cancellation():
 
     async def will_be_cancelled():
         with pytest.raises(asyncio.CancelledError):
-            pass
+            assert await message_collection.wait_for_message() is message_a
+
+    async def cancel_task(task):
+        await asyncio.sleep(0.05)
+        task.cancel()
 
     # two tasks wait for the same message, but one task gets cancelled
-    async with asyncio.TaskGroup() as tg:
+    tg = asyncio.TaskGroup()
+    async with tg:
         push_task = tg.create_task(push_message())
         wait_task = tg.create_task(wait_for_message())
         cancelled_task = tg.create_task(will_be_cancelled())
+        cancelling_task = tg.create_task(cancel_task(cancelled_task))
 
-        cancelled_task.cancel()
-
-        async with asyncio.timeout(0.1):
+        async with asyncio.timeout(0.15):
+            # The cancelled error is not propagated, so gather() will finish
+            # normally (in a successful test).
             await asyncio.gather(
-                push_task, wait_task, cancelled_task, return_exceptions=True
+                push_task,
+                wait_task,
+                cancelled_task,
+                cancelling_task,
             )
 
-        # The other tasks should be unaffected.
-        assert not push_task.cancelled()
-        assert not wait_task.cancelled()
-        assert cancelled_task.cancelled()
+    # The other tasks should be unaffected.
+    assert not push_task.cancelled()
+    assert not wait_task.cancelled()
