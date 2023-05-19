@@ -105,15 +105,7 @@ class Connection(AsyncContextManager):
             len(message_classes),
         )
         for message_cls in message_classes:
-            if not any(
-                message_cls in p.handled_message_classes for p in self._processes
-            ):
-                await self.subscribe_to(message_cls)
-            else:
-                _log.debug(
-                    "Message type %s already is subscribed to, not subscribing again",
-                    get_type_name(message_cls),
-                )
+            await self.add_process_subsscription(process, message_cls)
         self._processes.append(process)
 
     async def deregister_process(self, process: Process):
@@ -125,15 +117,56 @@ class Connection(AsyncContextManager):
 
         self._processes.remove(process)
         for message_type in process.handled_message_classes:
-            if not any(
-                message_type in p.handled_message_classes for p in self._processes
-            ):
-                await self.unsubscribe_from(message_type)
-            else:
-                _log.debug(
-                    "Message type %s still handled by another process, not unsubscribing",
-                    get_type_name(message_type),
-                )
+            await self._unsubscribe_from_if_not_needed(message_type)
+
+    async def add_process_subsscription(
+        self, process: Process, message_cls: Type[Message]
+    ):
+        if process not in self._processes:
+            raise ValueError(
+                f"Process {process.name} is not registered with this connection"
+            )
+        assert (
+            message_cls in process.handled_message_classes
+        ), "The process needs to update its list of handled message types first"
+        if not self._is_message_type_subscription_required(message_cls):
+            _log.info(
+                'Subscribing to message type "%s" due to process "%s"',
+                get_type_name(message_cls),
+                process.name,
+            )
+            await self.subscribe_to(message_cls)
+        else:
+            _log.debug(
+                "Message type %s already is subscribed to, not subscribing again",
+                get_type_name(message_cls),
+            )
+
+    async def remove_process_subscription(
+        self, process: Process, message_cls: Type[Message]
+    ):
+        if process not in self._processes:
+            raise ValueError(
+                f"Process {process.name} is not registered with this connection"
+            )
+        assert (
+            message_cls not in process.handled_message_classes
+        ), "The process needs to update its list of handled message types first"
+        if not self._is_message_type_subscription_required(message_cls):
+            _log.info(
+                'Unsubscribing from message type "%s" as process "%s" does not require it anymore',
+                get_type_name(message_cls),
+                process.name,
+            )
+            await self.unsubscribe_from(message_cls)
+        else:
+            _log.debug(
+                "Message type %s still handled by another process, not unsubscribing",
+                get_type_name(message_cls),
+            )
+
+    def _is_message_type_subscription_required(self, message_cls: Type[Message]):
+        return any(message_cls in p.handled_message_classes for p in self._processes)
 
     def _on_connect(self, client, flags, rc, properties):
         _log.info("Successfully connected to MQTT broker with result code %s", rc)
