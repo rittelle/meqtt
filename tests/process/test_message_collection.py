@@ -23,14 +23,14 @@ def test_sync_operation():
     message_a3 = MessageA()
     message_b = MessageB()
 
-    message_collection.push_message(message_a1)
+    message_collection.try_push_message(message_a1)
     assert message_collection.pop_message() is message_a1
     with pytest.raises(LookupError):
         message_collection.pop_message()
 
-    message_collection.push_message(message_a2)
-    message_collection.push_message(message_b)
-    message_collection.push_message(message_a3)
+    message_collection.try_push_message(message_a2)
+    message_collection.try_push_message(message_b)
+    message_collection.try_push_message(message_a3)
     assert message_collection.pop_message() is message_a2
     assert message_collection.pop_message() is message_b
     assert message_collection.pop_message() is message_a3
@@ -49,13 +49,13 @@ async def test_async_operation():
     message_a = MessageA()
 
     # a message was received before the call to wait_for_message()
-    message_collection.push_message(message_a)
+    message_collection.try_push_message(message_a)
     assert await message_collection.wait_for_message() is message_a
 
     # a message arrives during the await
     async def push_message():
         await asyncio.sleep(0.05)
-        message_collection.push_message(message_a)
+        message_collection.try_push_message(message_a)
 
     async def wait_for_message():
         assert await message_collection.wait_for_message() is message_a
@@ -86,7 +86,7 @@ async def test_async_cancellation():
     # a message arrives during the await
     async def push_message():
         await asyncio.sleep(0.10)
-        message_collection.push_message(message_a)
+        message_collection.try_push_message(message_a)
 
     async def wait_for_message():
         assert await message_collection.wait_for_message() is message_a

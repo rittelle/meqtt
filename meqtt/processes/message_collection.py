@@ -22,7 +22,7 @@ class MessageCollection:
         # populated when a message is awaited.
         self._futures: Set[asyncio.Future[Message]] = set()
 
-    def push_message(self, message: Message):
+    def try_push_message(self, message: Message):
         """Add a message to the collection if it is of a type that is collected.
 
         Returns True if the message was collected, False otherwise.
