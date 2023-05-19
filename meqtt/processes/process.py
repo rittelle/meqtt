@@ -1,5 +1,5 @@
 import logging
-from typing import Iterable, Optional, Set, Type
+from typing import AsyncContextManager, Iterable, Optional, Set, Type
 
 import meqtt.connection as connection  # module import to avoid circular import
 from meqtt.messages import Message
@@ -10,6 +10,55 @@ from .message_collection import MessageCollection
 from .task_manager import TaskManager
 
 _log = logging.getLogger(__name__)
+
+
+class CollectionContext(AsyncContextManager):
+    def __init__(
+        self,
+        message_types: Iterable[Type[Message]],
+        add_collection,
+        remove_collection,
+    ):
+        self._collection = MessageCollection(message_types)
+        self._add_collection = add_collection
+        self._remove_collection = remove_collection
+
+    async def __aenter__(self):
+        await self._add_collection(self._collection)
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self._remove_collection(self._collection)
+
+    async def wait_for(self) -> Message:
+        return await self._collection.wait_for_message()
+
+    def get_single(self, *message_types: Type[Message]) -> Optional[Message]:
+        """Returns the first received message in the underlying queue.
+
+        If no message is available, None is returned.
+
+        If message types are given, only messages of these types are considered.
+        """
+
+        if message_types:
+            raise NotImplementedError()
+
+        try:
+            return self._collection.pop_message()
+        except IndexError:
+            return None
+
+    def get_all(self, *message_types: Type[Message]) -> Iterable[Message]:
+        """Returns all received messages in the underlying queue.
+
+        If message types are given, only messages of these types are considered.
+        """
+
+        if message_types:
+            raise NotImplementedError()
+
+        return self._collection.pop_all_messages()
 
 
 class Process:
@@ -137,7 +186,7 @@ class Process:
 
     #     raise NotImplementedError()
 
-    async def wait_for(self, *message_classes: Type[Message]) -> Message:
+    async def wait_for(self, *message_types: Type[Message]) -> Message:
         """Waits for a message of the given type(s) to arrive and returns it.
 
         If multiple message types are given, the first message of any of the
@@ -148,19 +197,23 @@ class Process:
 
         if self.__connection is None:
             raise RuntimeError("The process has to be started first.")
-        message_collection = MessageCollection(message_classes)
+        message_collection = MessageCollection(message_types)
         await self.__add_message_collection(message_collection)
         try:
             return await message_collection.wait_for_message()
         finally:
             await self.__remove_message_collection(message_collection)
 
-    # async def collect_into(self, collection, message_class):
-    #     """Sammelt die angegeben Nachricht (oder eine Liste von ihnen) in eine Datenstruktur.
+    async def collector(self, *message_types: Type[Message]) -> CollectionContext:
+        """Returns an async context manager that can be used to receive messages."""
 
-    #     Jede emfpangene Nachricht wird in diese Liste hinzugefügt, auch wenn der aufrufende Task
-    #     gerade etwas anderes tut.
-    #     """
+        if self.__connection is None:
+            raise RuntimeError("The process has to be started first.")
+        return CollectionContext(
+            message_types,
+            self.__add_message_collection,
+            self.__remove_message_collection,
+        )
 
     def __scan_methods(self):
         """Scan the methods of the class for handlers and tasks."""
@@ -184,7 +237,7 @@ class Process:
         """Add a message collection the internal collection and do some setup."""
 
         assert self.__connection is not None
-        for message_class in message_collection.message_classes:
+        for message_class in message_collection.message_types:
             await self.__connection.add_process_subscription(self, message_class)
         _log.debug("Installing dynamic handler")
         self.__message_collections.add(message_collection)
@@ -195,5 +248,5 @@ class Process:
         assert self.__connection is not None
         _log.debug("Uninstalling dynamic handler")
         self.__message_collections.remove(message_collection)
-        for message_class in message_collection.message_classes:
+        for message_class in message_collection.message_types:
             await self.__connection.remove_process_subscription(self, message_class)

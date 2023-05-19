@@ -52,6 +52,13 @@ class MessageCollection:
         except IndexError:
             raise LookupError("No messages left")
 
+    def pop_all_messages(self) -> Iterable[Message]:
+        """Return all messages in the collection."""
+
+        messages = self.messages
+        self.messages = []
+        return messages
+
     async def wait_for_message(self) -> Message:
         """Wait for a new message and return it."""
 
