@@ -5,7 +5,7 @@ from typing import AsyncContextManager, List, Optional, Type
 import gmqtt
 
 from meqtt.messages import Message, from_json, to_json
-from meqtt.process import Process
+from meqtt.processes import Process
 from meqtt.utils import get_type_name
 
 _log = logging.getLogger(__name__)
