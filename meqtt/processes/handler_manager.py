@@ -23,7 +23,8 @@ class HandlerData:
 
 
 class HandlerManager:
-    def __init__(self):
+    def __init__(self, process_name: str):
+        self._process_name = process_name
         # Keys are the registered handlers.
         self._handlers: Dict[Handler, HandlerData] = {}
         # A map from the messages to the handlers that can handle them.
@@ -76,7 +77,9 @@ class HandlerManager:
         async with asyncio.TaskGroup() as tg:
             for handler in handlers:
                 handler_data = self._handlers[handler]
-                name = _get_handler_instance_name(handler, handler_data.instance_count)
+                name = _get_handler_instance_name(
+                    handler, self._process_name, handler_data.instance_count
+                )
                 task = tg.create_task(handler(message), name=name)
                 handler_data.running_instances.add(task)
                 handler_data.instance_count += 1
@@ -104,8 +107,12 @@ def _get_handler_name(handler: Handler) -> str:
     return handler.__name__  # returns the method name
 
 
-def _get_handler_instance_name(handler: Handler, current_instance_count: int) -> str:
-    return f"handler-{_get_handler_name(handler)}-{current_instance_count}"
+def _get_handler_instance_name(
+    handler: Handler, process_name: str, current_instance_count: int
+) -> str:
+    return (
+        f"{process_name}-handler-{_get_handler_name(handler)}-{current_instance_count}"
+    )
 
 
 def _get_handled_message_types(handler: Handler) -> Iterable[Type[Message]]:

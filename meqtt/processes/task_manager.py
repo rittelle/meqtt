@@ -17,7 +17,8 @@ class TaskData:
 
 
 class TaskManager:
-    def __init__(self):
+    def __init__(self, process_name: str):
+        self._process_name = process_name
         # Keys are the registered tasks.
         self._tasks: Dict[Task, TaskData] = {}
         self._asyncio_task_manager = AsyncioTaskManager()
@@ -52,7 +53,9 @@ class TaskManager:
             task_data = self._tasks[task]
         except KeyError:
             raise ValueError("Task is not registered")
-        name = _get_task_instance_name(task, task_data.instance_count)
+        name = _get_task_instance_name(
+            task, self._process_name, task_data.instance_count
+        )
         asyncio_task = asyncio.create_task(task(), name=name)
         _log.debug('Started task "%s" as "%s"', _get_task_name(task), name)
         self._asyncio_task_manager.register_task(asyncio_task)
@@ -91,5 +94,7 @@ def _get_task_name(task: Task) -> str:
     return task.__name__  # returns the method name
 
 
-def _get_task_instance_name(task: Task, current_instance_count: int) -> str:
-    return f"task-{_get_task_name(task)}-{current_instance_count}"
+def _get_task_instance_name(
+    task: Task, process_name: str, current_instance_count: int
+) -> str:
+    return f"{process_name}-task-{_get_task_name(task)}-{current_instance_count}"
