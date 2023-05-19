@@ -75,8 +75,8 @@ class Process:
         # Message collections that are created dynamically, for example by
         # wait_for().
         self.__message_collections: Set[MessageCollection] = set()
-        self.__task_manager = TaskManager()
-        self.__handler_manager = HandlerManager()
+        self.__task_manager = TaskManager(self.name)
+        self.__handler_manager = HandlerManager(self.name)
 
         # process the decorated methods of self
         self.__scan_methods()
