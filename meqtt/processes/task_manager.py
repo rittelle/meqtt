@@ -46,8 +46,11 @@ class TaskManager:
             raise ValueError('Task "%s" is already registered', task.get_name())
         self._tasks[task] = TaskData()
 
-    def start_task(self, task: Task):
-        """Start a task."""
+    def start_task(self, task: Task) -> asyncio.Task:
+        """Start a task.
+
+        An asyncio.Task instance is returned which can also be used to cancel task instance.
+        """
 
         try:
             task_data = self._tasks[task]
@@ -61,20 +64,32 @@ class TaskManager:
         self._asyncio_task_manager.register_task(asyncio_task)
         task_data.running_instances.add(asyncio_task)
         task_data.instance_count += 1
+        return asyncio_task
 
-    def cancel_task(self, task: Task):
+    def cancel_task(self, task: Task | asyncio.Task):
         """Cancel all instances of a task."""
 
-        if task not in self._tasks:
-            raise ValueError('Task "%s" is not registered', task.get_name())
-        running_instances = list(self._tasks[task].running_instances)
-        _log.debug(
-            'Cancelling %d instances of task "%s"',
-            len(running_instances),
-            _get_task_name(task),
-        )
-        for asyncio_task in self._tasks[task].running_instances:
-            self._asyncio_task_manager.cancel_task(asyncio_task)
+        if isinstance(task, Task):
+            if task not in self._tasks:
+                raise ValueError('Task "%s" is not registered', task.get_name())
+            running_instances = list(self._tasks[task].running_instances)
+            _log.debug(
+                'Cancelling %d instances of task "%s"',
+                len(running_instances),
+                _get_task_name(task),
+            )
+            for asyncio_task in self._tasks[task].running_instances:
+                self._asyncio_task_manager.cancel_task(asyncio_task)
+        elif isinstance(task, asyncio.Task):
+            all_asyncio_tasks = self._asyncio_task_manager.registered_tasks
+            if task not in all_asyncio_tasks:
+                raise ValueError(
+                    'Task instance "%s" does not appear to belong to a registered task',
+                    task.get_name(),
+                )
+            self._asyncio_task_manager.cancel_task(task)
+        else:
+            raise ValueError("The argument is not a valid task or task instance")
 
     def cancel_all_tasks(self):
         """Cancel all tasks."""

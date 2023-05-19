@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import random
 from typing import AsyncContextManager, Iterable, Optional, Set, Type
@@ -163,15 +164,19 @@ class Process:
         notwendig, dies noch einmal hier zu tun.
         """
 
-    def start_task(self, method):
-        """Startet den angegeben Task."""
+    def start_task(self, method) -> asyncio.Task:
+        """Startet den angegeben Task.
 
-        self.__task_manager.start_task(method)
+        An asycio.Task object is returned that can be used to wait for the
+        task's completion or to cancel a specific instance.
+        """
 
-    def stop_task(self, method):
+        return self.__task_manager.start_task(method)
+
+    def stop_task(self, method_or_task):
         """Stoppt den angegeben Task."""
 
-        self.__task_manager.cancel_task(method)
+        self.__task_manager.cancel_task(method_or_task)
 
     async def publish(self, message: Message):
         """Versendet ein Nachrichtobjekt"""
