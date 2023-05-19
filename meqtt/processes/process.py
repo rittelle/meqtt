@@ -11,6 +11,9 @@ from .task_manager import TaskManager
 
 _log = logging.getLogger(__name__)
 
+#: Count the number of processes instantiated to generate unique names.
+_process_counter = 0
+
 
 class CollectionContext(AsyncContextManager):
     def __init__(
@@ -63,9 +66,10 @@ class CollectionContext(AsyncContextManager):
 
 class Process:
     def __init__(self):
+        global _process_counter
         # The name of this process.
-        # TODO: Make sure that this is unique.
-        self.name = str(type(self).__name__)
+        self.name = f"{str(type(self).__name__)}-{_process_counter}"
+        _process_counter += 1
         # The connection to the broker.
         self.__connection: Optional["connection.Connection"] = None
 
