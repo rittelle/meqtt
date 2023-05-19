@@ -5,6 +5,14 @@ from meqtt.processes.asyncio_task_manager import AsyncioTaskManager
 
 
 @pytest.mark.asyncio
+async def test_empty_task_manager():
+    tm = AsyncioTaskManager()
+    async with asyncio.timeout(0.1):
+        await tm.join()
+    assert len(tm.registered_tasks) == 0
+
+
+@pytest.mark.asyncio
 async def test_all_tasks_finishing():
     async def task1():
         await asyncio.sleep(0.05)
