@@ -193,6 +193,15 @@ class Process:
         given types is returned.
 
         This can be used to receive messages in tasks.
+
+        Please note that only messages that arrive during the await get returned
+        (and after a small setup time in the beginning).  So if a relevant
+        message arrives when the task is not currently waiting for a message, it
+        will be missed.  This method is therefore not suitable for receiving
+        messages in a continuous manner.
+
+        See collector() for a way to reliably receive all messages that arrive
+        while a specific piece of code is executed.
         """
 
         if self.__connection is None:
