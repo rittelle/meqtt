@@ -1,66 +1,17 @@
 import asyncio
 import logging
 import random
-from typing import AsyncContextManager, Iterable, Optional, Set, Type
+from typing import Iterable, Optional, Set, Type
 
 import meqtt.connection as connection  # module import to avoid circular import
 from meqtt.messages import Message
 
 from .decorators import TYPE_ATTRIBUTE
 from .handler_manager import HandlerManager
-from .message_collection import MessageCollection
+from .message_collector import MessageCollector
 from .task_manager import TaskManager
 
 _log = logging.getLogger(__name__)
-
-
-class CollectionContext(AsyncContextManager):
-    def __init__(
-        self,
-        message_types: Iterable[Type[Message]],
-        add_collection,
-        remove_collection,
-    ):
-        self._collection = MessageCollection(message_types)
-        self._add_collection = add_collection
-        self._remove_collection = remove_collection
-
-    async def __aenter__(self):
-        await self._add_collection(self._collection)
-        return self
-
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        await self._remove_collection(self._collection)
-
-    async def wait_for(self) -> Message:
-        return await self._collection.wait_for_message()
-
-    def get_single(self, *message_types: Type[Message]) -> Optional[Message]:
-        """Returns the first received message in the underlying queue.
-
-        If no message is available, None is returned.
-
-        If message types are given, only messages of these types are considered.
-        """
-
-        if message_types:
-            raise NotImplementedError()
-
-        try:
-            return self._collection.pop_message()
-        except IndexError:
-            return None
-
-    def get_all(self, *message_types: Type[Message]) -> Iterable[Message]:
-        """Returns all received messages in the underlying queue.
-
-        If message types are given, only messages of these types are considered.
-        """
-
-        if message_types:
-            raise NotImplementedError()
-
-        return self._collection.pop_all_messages()
 
 
 class Process:
@@ -75,7 +26,7 @@ class Process:
 
         # Message collections that are created dynamically, for example by
         # wait_for().
-        self.__message_collections: Set[MessageCollection] = set()
+        self.__message_collections: Set[MessageCollector] = set()
         self.__task_manager = TaskManager(self.name)
         self.__handler_manager = HandlerManager(self.name)
 
@@ -215,19 +166,19 @@ class Process:
 
         if self.__connection is None:
             raise RuntimeError("The process has to be started first.")
-        message_collection = MessageCollection(message_types)
+        message_collection = MessageCollector(message_types)
         await self.__add_message_collection(message_collection)
         try:
-            return await message_collection.wait_for_message()
+            return await message_collection.wait_for()
         finally:
             await self.__remove_message_collection(message_collection)
 
-    async def collector(self, *message_types: Type[Message]) -> CollectionContext:
+    async def collector(self, *message_types: Type[Message]) -> MessageCollector:
         """Returns an async context manager that can be used to receive messages."""
 
         if self.__connection is None:
             raise RuntimeError("The process has to be started first.")
-        return CollectionContext(
+        return MessageCollector(
             message_types,
             self.__add_message_collection,
             self.__remove_message_collection,

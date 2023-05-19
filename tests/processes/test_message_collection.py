@@ -1,7 +1,7 @@
 import asyncio
 import meqtt
 import pytest
-from meqtt.processes.message_collection import MessageCollection
+from meqtt.processes.message_collector import MessageCollector
 
 
 def test_sync_operation():
@@ -13,10 +13,10 @@ def test_sync_operation():
     class MessageB(meqtt.Message):
         pass
 
-    message_collection = MessageCollection([MessageA, MessageB])
+    message_collection = MessageCollector([MessageA, MessageB])
 
     with pytest.raises(LookupError):
-        message_collection.pop_message()
+        message_collection.get_single()
 
     message_a1 = MessageA()
     message_a2 = MessageA()
@@ -24,18 +24,18 @@ def test_sync_operation():
     message_b = MessageB()
 
     message_collection.try_push_message(message_a1)
-    assert message_collection.pop_message() is message_a1
+    assert message_collection.get_single() is message_a1
     with pytest.raises(LookupError):
-        message_collection.pop_message()
+        message_collection.get_single()
 
     message_collection.try_push_message(message_a2)
     message_collection.try_push_message(message_b)
     message_collection.try_push_message(message_a3)
-    assert message_collection.pop_message() is message_a2
-    assert message_collection.pop_message() is message_b
-    assert message_collection.pop_message() is message_a3
+    assert message_collection.get_single() is message_a2
+    assert message_collection.get_single() is message_b
+    assert message_collection.get_single() is message_a3
     with pytest.raises(LookupError):
-        message_collection.pop_message()
+        message_collection.get_single()
 
 
 @pytest.mark.asyncio
@@ -44,13 +44,13 @@ async def test_async_operation():
     class MessageA(meqtt.Message):
         pass
 
-    message_collection = MessageCollection([MessageA])
+    message_collection = MessageCollector([MessageA])
 
     message_a = MessageA()
 
     # a message was received before the call to wait_for_message()
     message_collection.try_push_message(message_a)
-    assert await message_collection.wait_for_message() is message_a
+    assert await message_collection.wait_for() is message_a
 
     # a message arrives during the await
     async def push_message():
@@ -58,7 +58,7 @@ async def test_async_operation():
         message_collection.try_push_message(message_a)
 
     async def wait_for_message():
-        assert await message_collection.wait_for_message() is message_a
+        assert await message_collection.wait_for() is message_a
 
     # only one task waits for the message
     async with asyncio.TaskGroup() as tg:
@@ -79,7 +79,7 @@ async def test_async_cancellation():
     class MessageA(meqtt.Message):
         pass
 
-    message_collection = MessageCollection([MessageA])
+    message_collection = MessageCollector([MessageA])
 
     message_a = MessageA()
 
@@ -89,11 +89,11 @@ async def test_async_cancellation():
         message_collection.try_push_message(message_a)
 
     async def wait_for_message():
-        assert await message_collection.wait_for_message() is message_a
+        assert await message_collection.wait_for() is message_a
 
     async def will_be_cancelled():
         with pytest.raises(asyncio.CancelledError):
-            assert await message_collection.wait_for_message() is message_a
+            assert await message_collection.wait_for() is message_a
 
     async def cancel_task(task):
         await asyncio.sleep(0.05)
