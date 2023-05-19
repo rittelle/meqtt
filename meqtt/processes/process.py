@@ -1,4 +1,5 @@
 import logging
+import random
 from typing import AsyncContextManager, Iterable, Optional, Set, Type
 
 import meqtt.connection as connection  # module import to avoid circular import
@@ -10,9 +11,6 @@ from .message_collection import MessageCollection
 from .task_manager import TaskManager
 
 _log = logging.getLogger(__name__)
-
-#: Count the number of processes instantiated to generate unique names.
-_process_counter = 0
 
 
 class CollectionContext(AsyncContextManager):
@@ -66,10 +64,11 @@ class CollectionContext(AsyncContextManager):
 
 class Process:
     def __init__(self):
-        global _process_counter
+        # Create a unique identifier without adding a full blown UUID.
+        # Kinda like a poor man's UUID.
+        rand_id = random.randbytes(8).hex()
         # The name of this process.
-        self.name = f"{str(type(self).__name__)}-{_process_counter}"
-        _process_counter += 1
+        self.name = f"{str(type(self).__name__)}-{rand_id}"
         # The connection to the broker.
         self.__connection: Optional["connection.Connection"] = None
 
