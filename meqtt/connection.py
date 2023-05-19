@@ -199,10 +199,15 @@ class Connection(AsyncContextManager):
             )
             return int(gmqtt.constants.PubRecReasonCode.TOPIC_NAME_INVALID)
 
+        message_handled = False
         for process in self._processes:
             # No-op if process does not handle this message type, so
             # we can skip checking that.
-            await process.handle_message(message)
+            message_handled |= await process.handle_message(message)
+        if not message_handled:
+            _log.warning(
+                'A message on topic "%s" was not handled by any process', topic
+            )
         return int(gmqtt.constants.PubRecReasonCode.SUCCESS)
 
     def _on_disconnect(self, client, packet, exc=None):

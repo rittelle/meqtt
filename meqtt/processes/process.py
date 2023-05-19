@@ -125,7 +125,7 @@ class Process:
             result |= message_collection.message_types
         return result
 
-    async def handle_message(self, message: Message):
+    async def handle_message(self, message: Message) -> bool:
         """Verarbeitet eine Nachricht."""
 
         message_handled = False
@@ -147,6 +147,7 @@ class Process:
                 "None of the %d dynamic handlers handled this message",
                 dynamic_handlers_total,
             )
+        return message_handled
 
     async def on_start(self):
         """Standard-Implementation, die alle Tasks startet, welche noch nicht gestarted wurden."""
