@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import logging
-from typing import AsyncContextManager, List, Optional, Type
+from typing import AsyncContextManager, List, Optional, Set, Type
 
 import gmqtt
 
@@ -104,9 +104,9 @@ class Connection(AsyncContextManager):
             process.name,
             len(message_classes),
         )
+        self._processes.append(process)
         for message_cls in message_classes:
             await self.add_process_subscription(process, message_cls)
-        self._processes.append(process)
 
     async def deregister_process(self, process: Process):
         message_classes = list(process.handled_message_classes)
@@ -131,7 +131,9 @@ class Connection(AsyncContextManager):
         assert (
             message_cls in process.handled_message_classes
         ), "The process needs to update its list of handled message types first"
-        if not self._is_message_type_subscription_required(message_cls):
+        if not self._is_message_type_subscription_required(
+            message_cls, excluded_processes={process}
+        ):
             _log.info(
                 'Subscribing to message type "%s" due to process "%s"',
                 get_type_name(message_cls),
@@ -154,7 +156,9 @@ class Connection(AsyncContextManager):
         assert (
             message_cls not in process.handled_message_classes
         ), "The process needs to update its list of handled message types first"
-        if not self._is_message_type_subscription_required(message_cls):
+        if not self._is_message_type_subscription_required(
+            message_cls, excluded_processes={process}
+        ):
             _log.info(
                 'Unsubscribing from message type "%s" as process "%s" does not require it anymore',
                 get_type_name(message_cls),
@@ -167,8 +171,14 @@ class Connection(AsyncContextManager):
                 get_type_name(message_cls),
             )
 
-    def _is_message_type_subscription_required(self, message_cls: Type[Message]):
-        return any(message_cls in p.handled_message_classes for p in self._processes)
+    def _is_message_type_subscription_required(
+        self, message_cls: Type[Message], excluded_processes: Set[Process] = set()
+    ):
+        return any(
+            message_cls in p.handled_message_classes
+            for p in self._processes
+            if p not in excluded_processes
+        )
 
     def _on_connect(self, client, flags, rc, properties):
         _log.info("Successfully connected to MQTT broker with result code %s", rc)
