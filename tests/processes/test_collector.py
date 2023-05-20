@@ -139,7 +139,7 @@ async def test_get_without_filters():
                 assert list(collector.get_all()) == []
 
                 # wait for the first messages
-                assert asyncio.sleep(0.10)
+                await asyncio.sleep(0.05)
                 assert collector.get_single() is message_a1
                 assert list(collector.get_all()) == [message_b, message_a2]
 
@@ -151,7 +151,7 @@ async def test_get_without_filters():
     connection = MagicMock(spec_set=meqtt.Connection)
 
     async def push_message():
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.01)
         _log.debug("Pushing messages")
         await process.handle_message(message_a1)
         await process.handle_message(message_b)
