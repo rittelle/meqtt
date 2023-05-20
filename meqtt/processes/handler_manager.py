@@ -5,7 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Callable, Coroutine, Dict, Iterable, Set, Type, TypeVar
 
-from meqtt.messages import Message
+from meqtt.messages import Message, is_message_cls
 from meqtt.utils import get_type_name
 
 from .asyncio_task_manager import AsyncioTaskManager
@@ -149,7 +149,7 @@ def _get_handled_message_types(handler: Handler) -> Iterable[Type[Message]]:
     # API allows for more than one.
     # TODO: Support multiple message types (in form of a
     # typing.Union typing).
-    is_message_type = issubclass(message_type, Message)
+    is_message_type = is_message_cls(message_type)
     if not has_type_annotation or not is_message_type:
         raise ValueError(
             f"The message parameter has to have a Message class as the type annotation: {method_name}"

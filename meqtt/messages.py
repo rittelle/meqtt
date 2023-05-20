@@ -1,11 +1,16 @@
 import dataclasses
 import json
 from abc import ABC
-from typing import Tuple
+from dataclasses import dataclass
+from typing import Any, Tuple, Type, dataclass_transform
 
 _message_classes = {}
 
 
+# Someday, I'd like this to be a Protocol, so that the user code does not have
+# to inherit from Message explicitly.  But currently, there does not seem to be
+# a way to hint that the message() decorator implements the protocol.  So this
+# is the only way I could find to make mypy happy.
 class Message(ABC):
     """Base class for all message object.
 
@@ -36,6 +41,9 @@ def from_json(topic: str, input: str) -> Message:
     return cls(**message)
 
 
+# Interestingly, this decorator has to be applied to the function returning the
+# actual decorator.
+@dataclass_transform()
 def message(topic):
     """A decorator that turns a class into a message object class.
 
@@ -43,11 +51,30 @@ def message(topic):
     """
 
     def decorator(cls):
-        # cls.to_json = _to_json
-        # cls.from_json = _from_json
-        Message.register(cls)
-        cls.topic = topic
-        _message_classes[topic] = cls
-        return dataclasses.dataclass(cls)
+        data_cls = dataclasses.dataclass(cls)
+        data_cls.topic = topic
+        _message_classes[topic] = data_cls
+        assert is_message_cls(data_cls)
+        return data_cls
 
     return decorator
+
+
+@dataclass_transform()
+def test_message_decorator(cls):
+    return dataclass(cls)
+
+
+def is_message_obj(obj: Any) -> bool:
+    """Returns True if the object can be used as a message."""
+
+    return is_message_cls(type(obj))
+
+
+def is_message_cls(cls: Type) -> bool:
+    """Returns True if the class can be used as a message."""
+
+    return issubclass(cls, Message) and dataclasses.is_dataclass(cls)
+
+
+dataclasses.dataclass
