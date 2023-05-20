@@ -3,18 +3,22 @@ from typing import (
     AsyncContextManager,
     Awaitable,
     Callable,
+    Generic,
     Iterable,
     List,
     Optional,
     Self,
     Set,
     Type,
+    TypeVarTuple,
 )
 
 from meqtt.messages import Message
 
+MessageCls = TypeVarTuple("MessageCls")
 
-class MessageCollector(AsyncContextManager):
+
+class MessageCollector(Generic[*MessageCls], AsyncContextManager):
     """A collection of Messages of specific types.
 
     The collection acts as a queue. Messages are retrieved in the order they
@@ -28,6 +32,7 @@ class MessageCollector(AsyncContextManager):
 
     def __init__(
         self,
+        # TODO: Make sure that this is the same as the type arguments (if specified)
         message_types: Iterable[Type[Message]],
         enter_callback: Optional[Callable[[Self], Awaitable[None]]] = None,
         exit_callback: Optional[Callable[[Self], Awaitable[None]]] = None,
