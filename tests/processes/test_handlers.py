@@ -58,10 +58,12 @@ async def test_same_message_in_handlers():
 
         @meqtt.handler
         async def on_test1(self, message: TestMessage):
+            assert isinstance(message, TestMessage)
             self.calls_to_test1 += 1
 
         @meqtt.handler
         async def on_test2(self, message: TestMessage):
+            assert isinstance(message, TestMessage)
             self.calls_to_test2 += 1
 
     _log.debug("Process class created")
@@ -86,10 +88,11 @@ async def test_if_unrelated_handler_does_not_get_executed():
     class AProcess(meqtt.Process):
         @meqtt.handler
         async def on_test1(self, message: TestMessage):
-            pass
+            assert isinstance(message, TestMessage)
 
         @meqtt.handler
         async def on_test2(self, message: TestMessage2):
+            assert isinstance(message, TestMessage2)
             assert False, "This handler should not be executed"
 
     _log.debug("Process class created")

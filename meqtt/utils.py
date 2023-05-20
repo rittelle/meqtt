@@ -1,4 +1,4 @@
-from contextlib import AsyncExitStack, ExitStack
+from contextlib import AsyncExitStack
 from typing import (
     AsyncContextManager,
     Awaitable,
@@ -6,7 +6,6 @@ from typing import (
     Iterable,
     ParamSpec,
     Type,
-    TypeVarTuple,
 )
 
 

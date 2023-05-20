@@ -94,7 +94,7 @@ async def test_exception_in_with_body():
                 pass
 
             with pytest.raises(MyException):
-                async with await self.collector(MessageA) as collector:
+                async with await self.collector(MessageA):
                     raise MyException()
 
     process = AProcess()
