@@ -26,8 +26,8 @@ class Process:
 
         # Message collections that are created dynamically, for example by
         # wait_for().
-        self.__message_collections: Set[MessageCollector] = set()
         self.__task_manager = TaskManager(self.name)
+        self.__message_collectors: Set[MessageCollector] = set()
         self.__handler_manager = HandlerManager(self.name)
 
         # process the decorated methods of self
@@ -73,7 +73,7 @@ class Process:
 
         # We use sets to avoid duplicates.
         result = set(self.__handler_manager.handled_message_types)
-        for message_collection in self.__message_collections:
+        for message_collection in self.__message_collectors:
             result |= message_collection.message_types
         return result
 
@@ -83,8 +83,8 @@ class Process:
         message_handled = False
         await self.__handler_manager.handle_message(message)
         dynamic_handlers_run = 0
-        dynamic_handlers_total = len(self.__message_collections)
-        for message_collection in self.__message_collections:
+        dynamic_handlers_total = len(self.__message_collectors)
+        for message_collection in self.__message_collectors:
             if message_collection.try_push_message(message):
                 dynamic_handlers_run += 1
         if dynamic_handlers_run > 0:
@@ -167,11 +167,11 @@ class Process:
         if self.__connection is None:
             raise RuntimeError("The process has to be started first.")
         message_collection = MessageCollector(message_types)
-        await self.__add_message_collection(message_collection)
+        await self.__add_message_collector(message_collection)
         try:
             return await message_collection.wait_for()
         finally:
-            await self.__remove_message_collection(message_collection)
+            await self.__remove_message_collector(message_collection)
 
     async def collector(self, *message_types: Type[Message]) -> MessageCollector:
         """Returns an async context manager that can be used to receive messages."""
@@ -180,8 +180,8 @@ class Process:
             raise RuntimeError("The process has to be started first.")
         return MessageCollector(
             message_types,
-            self.__add_message_collection,
-            self.__remove_message_collection,
+            self.__add_message_collector,
+            self.__remove_message_collector,
         )
 
     def __scan_methods(self):
@@ -202,20 +202,20 @@ class Process:
                 case "task":
                     self.__task_manager.register_task(bound_method)
 
-    async def __add_message_collection(self, message_collection):
+    async def __add_message_collector(self, message_collection):
         """Add a message collection the internal collection and do some setup."""
 
         assert self.__connection is not None
         for message_class in message_collection.message_types:
             await self.__connection.add_process_subscription(self, message_class)
         _log.debug("Installing dynamic handler")
-        self.__message_collections.add(message_collection)
+        self.__message_collectors.add(message_collection)
 
-    async def __remove_message_collection(self, message_collection):
+    async def __remove_message_collector(self, message_collection):
         """Add a message collection the internal collection and do some cleanup."""
 
         assert self.__connection is not None
         _log.debug("Uninstalling dynamic handler")
-        self.__message_collections.remove(message_collection)
+        self.__message_collectors.remove(message_collection)
         for message_class in message_collection.message_types:
             await self.__connection.remove_process_subscription(self, message_class)
