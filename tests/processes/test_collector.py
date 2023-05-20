@@ -27,17 +27,21 @@ async def test_wait_for():
     message_b = MessageB()
     message_c = MessageC()
 
+    task_finished = False
+
     class AProcess(meqtt.Process):
         @meqtt.task
         async def task1(self):
             async with await self.collector(MessageA, MessageB) as collector:
-                _log.debug("Waitng for messages")
-                assert await collector.wait_for(MessageA) is message_a1
+                _log.debug("Waiting for messages")
+                assert await collector.wait_for() is message_a1
                 _log.debug("Message a1 received")
-                assert await collector.wait_for(MessageB) is message_b
+                assert await collector.wait_for() is message_b
                 _log.debug("Message b received")
-                assert await collector.wait_for(MessageA) is message_a2
+                assert await collector.wait_for() is message_a2
                 _log.debug("Message a2 received, done")
+            nonlocal task_finished
+            task_finished = True
 
     process = AProcess()
     connection = MagicMock(spec_set=meqtt.Connection)
@@ -67,6 +71,8 @@ async def test_wait_for():
 
     async with asyncio.timeout(0.1):
         await asyncio.gather(push_message(), run_process())
+
+    assert task_finished
 
     # check the calls to the mock methods
     # There should only be one subscription/unsubscription for each message

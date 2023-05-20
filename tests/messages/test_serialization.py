@@ -12,6 +12,7 @@ def test_serialization_identity():
     topic, data = messages.to_json(msg)
     assert topic == "/test/topic"
     msg2 = messages.from_json("/test/topic", data)
+    assert isinstance(msg2, ExampleMessage)
     assert msg2.topic == "/test/topic"
     assert msg2.value == 42
 
@@ -26,6 +27,7 @@ def test_on_external_data():
         b: int
 
     msg = messages.from_json("/test/topic", data)
+    assert isinstance(msg, ExampleMessage)
     assert msg.topic == "/test/topic"
     assert msg.r == 254
     assert msg.g == 21

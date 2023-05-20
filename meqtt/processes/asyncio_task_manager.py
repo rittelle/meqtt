@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Set
+from typing import Awaitable, Optional, Set, Tuple, TypeVar
 
 _log = logging.getLogger(__name__)
 
@@ -130,7 +130,12 @@ async def run_task_and_log_exceptions(task: asyncio.Task):
         _log.info("Task %s finished", task.get_name())
 
 
-async def _collect_exceptions_and_return_with_const(awaitable, const):
+_T = TypeVar("_T")
+
+
+async def _collect_exceptions_and_return_with_const(
+    awaitable: Awaitable[None], const: _T
+) -> Tuple[Optional[BaseException], _T]:
     """Collects exceptions from an awaitable and return them.
 
     The second argument is returned together with the exception.
