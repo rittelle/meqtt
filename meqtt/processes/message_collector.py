@@ -77,7 +77,7 @@ class MessageCollector(Generic[*MessageCls], AsyncContextManager):
             self.messages.append(message)
         return True
 
-    def get_single(self) -> Message:
+    def get_single(self) -> Optional[Message]:
         """Return the next message in the collection.
 
         Raises LookupError if the collection is empty.
@@ -86,7 +86,7 @@ class MessageCollector(Generic[*MessageCls], AsyncContextManager):
         try:
             return self.messages.pop(0)
         except IndexError:
-            raise LookupError("No messages left")
+            return None
 
     def get_all(self) -> Iterable[Message]:
         """Return all messages in the collection."""
@@ -99,10 +99,8 @@ class MessageCollector(Generic[*MessageCls], AsyncContextManager):
         """Wait for a new message and return it."""
 
         # If there is a message waiting, return it immediately.
-        try:
-            return self.get_single()
-        except LookupError:
-            pass
+        if message := self.get_single():
+            return message
 
         # Otherwise, create a new future and wait for it.
         future = asyncio.get_event_loop().create_future()

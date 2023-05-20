@@ -15,8 +15,7 @@ def test_sync_operation():
 
     message_collection = MessageCollector([MessageA, MessageB])
 
-    with pytest.raises(LookupError):
-        message_collection.get_single()
+    assert message_collection.get_single() is None
 
     message_a1 = MessageA()
     message_a2 = MessageA()
@@ -25,8 +24,7 @@ def test_sync_operation():
 
     message_collection.try_push_message(message_a1)
     assert message_collection.get_single() is message_a1
-    with pytest.raises(LookupError):
-        message_collection.get_single()
+    assert message_collection.get_single() is None
 
     message_collection.try_push_message(message_a2)
     message_collection.try_push_message(message_b)
@@ -34,8 +32,7 @@ def test_sync_operation():
     assert message_collection.get_single() is message_a2
     assert message_collection.get_single() is message_b
     assert message_collection.get_single() is message_a3
-    with pytest.raises(LookupError):
-        message_collection.get_single()
+    assert message_collection.get_single() is None
 
 
 @pytest.mark.asyncio
