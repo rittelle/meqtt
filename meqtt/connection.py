@@ -193,7 +193,7 @@ class Connection(AsyncContextManager):
         _log.debug("Received message on topic %s with payload '%s'", topic, payload_str)
 
         try:
-            message = from_json(topic, payload_str)
+            messages = list(from_json(topic, payload_str))
         except ValueError as exc:
             _log.error(
                 "Received message with invalid JSON payload on topic %s: %s",
@@ -201,7 +201,8 @@ class Connection(AsyncContextManager):
                 exc,
             )
             return int(gmqtt.constants.PubRecReasonCode.PAYLOAD_FORMAT_INVALID)
-        except LookupError as exc:
+
+        if not messages:
             _log.debug("Cannot find a matching message class for topic %s", topic)
             _log.error(
                 "Received message with unexpected topic %s",
@@ -210,10 +211,11 @@ class Connection(AsyncContextManager):
             return int(gmqtt.constants.PubRecReasonCode.TOPIC_NAME_INVALID)
 
         message_handled = False
-        for process in self._processes:
-            # No-op if process does not handle this message type, so
-            # we can skip checking that.
-            message_handled |= await process.handle_message(message)
+        for message in messages:
+            for process in self._processes:
+                # No-op if process does not handle this message type, so
+                # we can skip checking that.
+                message_handled |= await process.handle_message(message)
         if not message_handled:
             _log.warning(
                 'A message on topic "%s" was not handled by any process', topic

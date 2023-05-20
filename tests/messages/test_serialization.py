@@ -1,34 +1,88 @@
 import meqtt
+import pytest
 from meqtt import messages
 
 
+def remove_whitespace(s):
+    """Rmeoves all whitespace from a string."""
+
+    return "".join(c for c in s if not c.isspace())
+
+
+@pytest.fixture(autouse=True)
+def clear_message_classes():
+    messages.clear_message_classes()
+
+
 def test_serialization_identity():
-    @meqtt.message("/test/topic")
+    @meqtt.message("test/topic")
     class ExampleMessage(meqtt.Message):
         value: int
 
     msg = ExampleMessage(42)
 
     topic, data = messages.to_json(msg)
-    assert topic == "/test/topic"
-    msg2 = messages.from_json("/test/topic", data)
-    assert isinstance(msg2, ExampleMessage)
-    assert msg2.topic == "/test/topic"
-    assert msg2.value == 42
+    assert topic == "test/topic"
+    assert remove_whitespace(data) == '{"value":42}'
+    parsed_msgs = list(messages.from_json("test/topic", data))
+    assert len(parsed_msgs) == 1
+    parsed_msg = parsed_msgs[0]
+    assert isinstance(parsed_msg, ExampleMessage)
+    assert parsed_msg.topic == "test/topic"
+    assert parsed_msg.value == 42
 
 
 def test_on_external_data():
     data = '{ "r": 254, "g": 21, "b": 100 }'
 
-    @meqtt.message("/test/topic")
+    @meqtt.message("test/topic")
     class ExampleMessage(meqtt.Message):
         r: int
         g: int
         b: int
 
-    msg = messages.from_json("/test/topic", data)
+    @meqtt.message("test/topic2")
+    class UnrelatedMessage(meqtt.Message):
+        value: int
+
+    ExampleMessage(r=254, g=21, b=100)
+    msgs = list(messages.from_json("test/topic", data))
+    assert len(msgs) == 1
+    msg = msgs[0]
     assert isinstance(msg, ExampleMessage)
-    assert msg.topic == "/test/topic"
+    assert msg.topic == "test/topic"
     assert msg.r == 254
     assert msg.g == 21
     assert msg.b == 100
+
+
+def test_topic_variables():
+    @meqtt.message("test/{id:d}/topic/{name}")
+    class ExampleMessage(meqtt.Message):
+        id: int
+        name: str
+        value: int
+
+    # test serialization
+    msg = ExampleMessage(42, "test", 21)
+    topic, data = messages.to_json(msg)
+    assert topic == "test/42/topic/test"
+    assert remove_whitespace(data) == '{"value":21}'
+
+    # test deserialization
+    topic = "test/1337/topic/other_value"
+    data = '{ "value": 123456 }'
+    msgs = list(messages.from_json(topic, data))
+    assert len(msgs) == 1
+    msg = msgs[0]
+    assert isinstance(msg, ExampleMessage)
+    assert msg.topic == topic
+    assert msg.id == 1337
+    assert msg.name == "other_value"
+    assert msg.value == 123456
+
+    # test invalid topic
+    topic = "test/not_a_number/topic/test"
+    data = '{ "value": 123456 }'
+    msgs = list(messages.from_json(topic, data))
+    assert len(msgs) == 0
