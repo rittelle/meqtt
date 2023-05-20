@@ -172,6 +172,9 @@ def _get_collector_message_types(
     Then this function will return [(collector1, Union[Message1, Message2]), (collector2, Message3)].
     """
 
+    # Using typing.get_type_hints() would simplify this function a lot, but it
+    # is not currently possible detect parameters without type hints.
+
     task_name = _get_task_name(task)
 
     # get the signature
