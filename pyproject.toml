@@ -7,6 +7,7 @@ authors = ["Your Name <you@example.com>"]
 [tool.poetry.dependencies]
 python = "^3.11"
 gmqtt = "^0.6.12"
+parse = "^1.19.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.3.1"

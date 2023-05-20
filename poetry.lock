@@ -191,6 +191,17 @@ files = [
 ]
 
 [[package]]
+name = "parse"
+version = "1.19.0"
+description = "parse() is the opposite of format()"
+category = "main"
+optional = false
+python-versions = "*"
+files = [
+    {file = "parse-1.19.0.tar.gz", hash = "sha256:9ff82852bcb65d139813e2a5197627a94966245c897796760a3a2a8eb66f020b"},
+]
+
+[[package]]
 name = "pathspec"
 version = "0.11.1"
 description = "Utility library for gitignore style pattern matching of file paths."
@@ -313,4 +324,4 @@ testing-integration = ["build[virtualenv]", "filelock (>=3.4.0)", "jaraco.envs (
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "601297830477b0d70a67f3b75a17151a0575c0e52daa4848c739ba109cc8a028"
+content-hash = "6a4dcd47f95daa5a19e34a999807f7038c8e6837f66ae0e39969852a41358d3a"
