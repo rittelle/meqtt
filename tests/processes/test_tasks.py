@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import meqtt
+from meqtt.processes.message_collector import MessageCollector
 
 
 @pytest.mark.asyncio
@@ -60,3 +61,57 @@ async def test_all_tasks_completing_custom_start():
         await process.stop()
 
     assert completion_order == ["task2", "task1"]
+
+
+@pytest.mark.asyncio
+async def test_message_collector_params():
+    @meqtt.message("test/message/a")
+    class MessageA(meqtt.Message):
+        pass
+
+    @meqtt.message("test/message/b")
+    class MessageB(meqtt.Message):
+        pass
+
+    message_a = MessageA()
+    message_b = MessageB()
+    task_finished = False
+
+    class AProcess(meqtt.Process):
+        @meqtt.task
+        async def task1(
+            self,
+            col_a: MessageCollector[MessageA],
+            col_b: MessageCollector[MessageA, MessageB],
+        ):
+            await asyncio.sleep(0.05)
+
+            # both collectors should receive message_a
+            assert col_a.get_single() is message_a
+            assert col_a.get_single() is message_a
+            assert col_a.get_single() is None
+
+            assert col_b.get_single() is message_a
+            assert col_b.get_single() is message_b
+            assert col_b.get_single() is message_a
+            assert col_b.get_single() is None
+
+            nonlocal task_finished
+            task_finished = True
+
+    async def push_messages(process):
+        await asyncio.sleep(0.02)
+        await process.handle_message(message_a)
+        await process.handle_message(message_b)
+        await process.handle_message(message_a)
+
+    process = AProcess()
+    connection = MagicMock(spec_set=meqtt.Connection)
+
+    async with asyncio.timeout(0.1):
+        await process.start(connection)
+        await push_messages(process)
+        await process.join()
+        await process.stop()
+
+    assert task_finished, "task1 is expected to finish"

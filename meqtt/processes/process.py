@@ -26,8 +26,10 @@ class Process:
 
         # Message collections that are created dynamically, for example by
         # wait_for().
-        self.__task_manager = TaskManager(self.name)
         self.__message_collectors: Set[MessageCollector] = set()
+        self.__task_manager = TaskManager(
+            self.name, self.__add_message_collector, self.__remove_message_collector
+        )
         self.__handler_manager = HandlerManager(self.name)
 
         # process the decorated methods of self
