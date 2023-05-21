@@ -14,9 +14,10 @@ def clear_message_classes():
     messages.clear_message_classes()
 
 
-def test_normal_names():
-    # see the MQTT 5.0 spec, section 4.7.3
-    topics = (
+# see the MQTT 5.0 spec, section 4.7.3
+@pytest.mark.parametrize(
+    "topic",
+    (
         "test/topic",
         "test/topic/",
         "/t",
@@ -24,35 +25,50 @@ def test_normal_names():
         "/",
         "{/}",
         "test{{/",
-    )
-    for name in topics:
-        messages.clear_message_classes()
+    ),
+)
+def test_normal_names(topic):
+    messages.clear_message_classes()
 
-        @meqtt.message(name)
+    @meqtt.message(topic)
+    class Message(meqtt.Message):
+        pass
+
+    assert Message.topic_mask == topic
+
+
+@pytest.mark.parametrize(
+    "topic",
+    (
+        "",
+        "no//empty/segments",
+        "//",
+        "no \u0000 zero character",
+        "no/+/wildcards",
+        "or/#/these",
+        "see/#",
+    ),
+)
+def test_invalid_topics(topic):
+    with pytest.raises(ValueError):
+
+        @meqtt.message(topic)
         class Message(meqtt.Message):
             pass
 
-        assert Message.topic_mask == name
 
-
-def test_topic_variables():
-    @meqtt.message("/{id:d}/tag/name-{name}")
-    class Message1(meqtt.Message):
+@pytest.mark.parametrize(
+    "topic_mask,topic_pattern",
+    (
+        ("/{id:d}/tag/name-{name}", "/+/tag/+"),
+        ("{var}-suffix/hi", "+/hi"),
+        ("{{not-var}}/hi", "{{not-var}}/hi"),
+    ),
+)
+def test_topic_variables(topic_mask, topic_pattern):
+    @meqtt.message(topic_mask)
+    class Message(meqtt.Message):
         id: int
         name: str
 
-    assert Message1.topic_mask == "/+/tag/+"
-
-    @meqtt.message("{var}-suffix/hi")
-    class Message2(meqtt.Message):
-        id: int
-        name: str
-
-    assert Message2.topic_mask == "+/hi"
-
-    @meqtt.message("{{not-var}}/hi")
-    class Message3(meqtt.Message):
-        id: int
-        name: str
-
-    assert Message3.topic_mask == "{{not-var}}/hi"
+    assert Message.topic_mask == topic_pattern

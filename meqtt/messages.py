@@ -103,6 +103,8 @@ def message(topic_pattern: str):
     MQTT wildcards like ``+`` and ``#`` are not allowed in the topic pattern.
     """
 
+    _check_topic_name(topic_pattern)
+
     def decorator(cls):
         data_cls = dataclasses.dataclass(cls)
         data_cls.topic_pattern = topic_pattern
@@ -135,4 +137,27 @@ def is_message_cls(cls: Type) -> bool:
     return issubclass(cls, Message) and dataclasses.is_dataclass(cls)
 
 
-dataclasses.dataclass
+def _check_topic_name(topic: str):
+    """Returns True if the topic is valid for any registered message.
+
+    See 4.7.3 Topic semantic and usage in the MQTT 5.0 specification for
+    details.
+    """
+
+    segments = topic.split("/")
+
+    # Topics may not be empty
+    if len(topic) == 0:
+        raise ValueError("Empty topic")
+
+    # Check if any segment but the first or last is empty
+    if any(len(s) == 0 for s in segments[1:-1]):
+        raise ValueError("Empty topic segment")
+
+    # Check if any segment contains a wildcard
+    if "+" in topic or "#" in topic:
+        raise ValueError("Wildcards are not allowed in topic names")
+
+    # Check if the topic contains an unicode U+0000 character
+    if "\u0000" in topic:
+        raise ValueError("Topic contains an U+0000 character")
