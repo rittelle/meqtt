@@ -73,7 +73,7 @@ class Connection(AsyncContextManager):
         await self._client.disconnect()
 
     async def subscribe_to(self, message_cls: Type[Message]):
-        topic = message_cls.topic
+        topic = message_cls.topic_mask
         _log.debug(
             'Message type %s matches to topic "%s"',
             get_type_name(message_cls),
@@ -83,7 +83,7 @@ class Connection(AsyncContextManager):
         self._client.subscribe(topic, qos=2)
 
     async def unsubscribe_from(self, message_cls: Type[Message]):
-        topic = message_cls.topic
+        topic = message_cls.topic_mask
         _log.debug(
             'Message type %s matches to topic "%s"',
             get_type_name(message_cls),
