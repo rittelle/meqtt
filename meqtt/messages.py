@@ -1,9 +1,10 @@
 import dataclasses
 import json
+import re
 from abc import ABC
 from dataclasses import dataclass
-import re
 from typing import Any, Dict, Iterable, Tuple, Type, dataclass_transform
+
 import parse
 
 _message_classes = []
@@ -118,7 +119,7 @@ def message(topic_pattern: str):
     _check_topic_name(topic_pattern)
 
     def decorator(cls):
-        data_cls = dataclasses.dataclass(cls)
+        data_cls = dataclass(cls)
         data_cls.topic_pattern = topic_pattern
         data_cls._topic_parser = parse.compile(topic_pattern)
         _message_classes.append(data_cls)
