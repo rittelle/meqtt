@@ -93,7 +93,7 @@ class Connection(AsyncContextManager):
         self._client.unsubscribe(topic)
 
     async def publish(self, message: Message):
-        topic, payload = message.topic, to_json(message)
+        topic, payload = to_json(message)
         _log.debug('Publishing message on topic "%s" with payload %s', topic, payload)
         self._client.publish(topic, payload, qos=2)  # exactly once
 
