@@ -86,3 +86,25 @@ def test_topic_variables():
     data = '{ "value": 123456 }'
     msgs = list(messages.from_json(topic, data))
     assert len(msgs) == 0
+
+
+def test_not_serializable():
+    class NotSerializable:
+        pass
+
+    @meqtt.message("test/topic")
+    class ExampleMessage(meqtt.Message):
+        value: NotSerializable
+
+    msg = ExampleMessage(NotSerializable())
+    with pytest.raises(ValueError):
+        messages.to_json(msg)
+
+
+def test_invalid_json():
+    @meqtt.message("test/topic")
+    class ExampleMessage(meqtt.Message):
+        value: int
+
+    with pytest.raises(ValueError):
+        list(messages.from_json("test/topic", "not json"))

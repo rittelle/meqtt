@@ -52,16 +52,34 @@ def _get_message_variable(message) -> Dict[str, Any]:
 
 
 def to_json(message: Message) -> Tuple[str, str]:
+    """Converts a message object to a JSON string.
+
+    Raises:
+        ValueError: If the message could not be converted to JSON.
+    """
+
     message_variables = _get_message_variable(message)
 
     # TODO: Handle members with non-trivial types
-    return message.topic, json.dumps(message_variables)
+    try:
+        return message.topic, json.dumps(message_variables)
+    except TypeError as exc:
+        raise ValueError(
+            f"Message {message} could not be converted to JSON: {exc}"
+        ) from exc
 
 
 def from_json(topic: str, input: str) -> Iterable[Message]:
     """This may return multiple messages if topic patterns overlap."""
     # TODO: Handle non-trivial types
     # TODO: Error handling
+
+    # Read the message contents
+    try:
+        message = json.loads(input)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON: {exc.msg}") from exc
+
     for cls in _message_classes:
         # Check if the topic matches the pattern.
         if (result := cls._topic_parser.parse(topic)) is None:
@@ -69,12 +87,6 @@ def from_json(topic: str, input: str) -> Iterable[Message]:
 
         # Extract variables from the topic.
         topic_variables = result.named
-
-        # Read the message contents
-        try:
-            message = json.loads(input)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Invalid JSON: {exc.msg}") from exc
 
         yield cls(**(topic_variables | message))
 
