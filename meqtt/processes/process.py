@@ -62,12 +62,20 @@ class Process:
         self.__connection = None
 
     async def join(self):
-        """Wartet auf das Beenden des Prozesses."""
+        """Wartet auf das Beenden des Prozesses.
 
-        # Wait for the tasks to finish.
-        await self.__task_manager.join()
-        # Wait for handlers that may still be running.
-        await self.__handler_manager.join()
+        If no tasks are registered, this method will run indefinitely.
+        """
+
+        if self.__task_manager.registered_tasks:
+            # Wait for the tasks to finish.
+            await self.__task_manager.join()
+            # Wait for handlers that may still be running.
+            await self.__handler_manager.join()
+        else:
+            # wait indefinitely
+            _log.debug("No tasks registered, waiting indefinitely")
+            await asyncio.Event().wait()
 
     @property
     def handled_message_classes(self) -> Iterable[Type[Message]]:
