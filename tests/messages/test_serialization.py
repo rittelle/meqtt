@@ -35,7 +35,7 @@ def test_serialization_identity():
 def test_on_external_data():
     data = '{ "r": 254, "g": 21, "b": 100 }'
 
-    @meqtt.message("test/topic")
+    @meqtt.state("test/topic")
     class ExampleMessage(meqtt.Message):
         r: int
         g: int
@@ -102,7 +102,7 @@ def test_not_serializable():
 
 
 def test_invalid_json():
-    @meqtt.message("test/topic")
+    @meqtt.state("test/topic")
     class ExampleMessage(meqtt.Message):
         value: int
 

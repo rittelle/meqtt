@@ -30,7 +30,7 @@ def clear_message_classes():
 def test_normal_names(topic):
     messages.clear_message_classes()
 
-    @meqtt.message(topic)
+    @meqtt.state(topic)
     class Message(meqtt.Message):
         pass
 

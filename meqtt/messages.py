@@ -1,4 +1,5 @@
 import dataclasses
+from enum import Enum
 import json
 import re
 from abc import ABC
@@ -8,6 +9,13 @@ from typing import Any, Dict, Iterable, Tuple, Type, dataclass_transform
 import parse
 
 _message_classes = []
+
+
+class MessageType(Enum):
+    """The type of a message."""
+
+    MESSAGE = "message"
+    STATE = "state"
 
 
 # Someday, I'd like this to be a Protocol, so that the user code does not have
@@ -23,6 +31,7 @@ class Message(ABC):
 
     topic_pattern: str
     _topic_parser: parse.Parser
+    message_type: MessageType
 
     @property
     def topic(self) -> str:
@@ -120,11 +129,30 @@ def message(topic_pattern: str):
 
     def decorator(cls):
         data_cls = dataclass(cls)
+        data_cls.message_type = MessageType.MESSAGE
         data_cls.topic_pattern = topic_pattern
         data_cls._topic_parser = parse.compile(topic_pattern)
         _message_classes.append(data_cls)
         assert is_message_cls(data_cls)
         return data_cls
+
+    return decorator
+
+
+@dataclass_transform()
+def state(topic_pattern: str):
+    """A decorator that turns a class into a message object class.
+
+    Like :py:func:`message`, but with a slightly different handling on the MQTT
+    side.  Most notably, the retain flag is set for messages of this type.
+    """
+
+    _check_topic_name(topic_pattern)
+
+    def decorator(cls):
+        cls = message(topic_pattern)(cls)
+        cls.message_type = MessageType.STATE
+        return cls
 
     return decorator
 

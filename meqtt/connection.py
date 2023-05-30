@@ -4,7 +4,7 @@ from typing import AsyncContextManager, List, Optional, Set, Type
 
 import gmqtt
 
-from meqtt.messages import Message, from_json, to_json
+from meqtt.messages import Message, MessageType, from_json, to_json
 from meqtt.processes import Process
 from meqtt.utils import get_type_name
 
@@ -95,7 +95,15 @@ class Connection(AsyncContextManager):
     async def publish(self, message: Message):
         topic, payload = to_json(message)
         _log.debug('Publishing message on topic "%s" with payload %s', topic, payload)
-        self._client.publish(topic, payload, qos=2)  # exactly once
+        match message.message_type:
+            case MessageType.MESSAGE:
+                # exactly once
+                self._client.publish(topic, payload, qos=2)
+            case MessageType.STATE:
+                # exactly once and retain
+                self._client.publish(topic, payload, retain=True, qos=2)
+            case _:
+                raise ValueError(f"Unknown message type {message.message_type}")
 
     async def register_process(self, process: Process):
         message_classes = list(process.handled_message_classes)
