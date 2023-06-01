@@ -1,3 +1,9 @@
+"""meqtt main module.
+
+This module imports the public API of the meqtt package, so other modules do not
+need to be imported directly.
+"""
+
 __version__ = "0.1.0"
 
 from .connection import Connection, ConnectionInfo
