@@ -1,3 +1,5 @@
+"""The process base."""
+
 import asyncio
 import logging
 import random
@@ -15,6 +17,16 @@ _log = logging.getLogger(__name__)
 
 
 class Process:
+    """The base class for processes.
+
+    Framework users should subclass this class to impelement the functionality
+    of their application.
+
+    Attributes:
+        name: The name of the process.  This is used to identify the process
+            on the broker.  It has to be unique to the process instance.
+    """
+
     def __init__(self):
         # Create a unique identifier without adding a full blown UUID.
         # Kinda like a poor man's UUID.
@@ -37,12 +49,18 @@ class Process:
 
     @property
     def is_running(self) -> bool:
-        """Gibt an, ob der Prozess läuft."""
+        """Checks whether the process is running."""
 
         return self.__connection is not None
 
     async def start(self, connection: "connection.Connection"):
-        """Startet den Prozess."""
+        """Starts the process and registers ``self`` to the given connection.
+
+        Parameters:
+            connection: The connection to the broker.
+        Raises:
+            RuntimeError: If the process is already running.
+        """
 
         if self.is_running:
             raise RuntimeError("Process is already running")
@@ -51,7 +69,13 @@ class Process:
         await self.on_start()
 
     async def stop(self):
-        """Beendet den Prozess, verbindung zum Broker noch vorhanden."""
+        """Stops the process and deregisters ``self`` from the connection.
+
+        The inverse of :py:meth:`start`.
+
+        Raises:
+            RuntimeError: If the process is not running.
+        """
 
         if not self.is_running:
             raise RuntimeError("Process is not running")
@@ -62,7 +86,7 @@ class Process:
         self.__connection = None
 
     async def join(self):
-        """Wartet auf das Beenden des Prozesses.
+        """Waits for the process to exit.
 
         If no tasks are registered, this method will run indefinitely.
         """
@@ -79,7 +103,13 @@ class Process:
 
     @property
     def handled_message_classes(self) -> Iterable[Type[Message]]:
-        """Gibt alle Message-Klassen zurück, die dieser Prozess verarbeiten kann."""
+        """Return all message classes that are currently handled by this process.
+
+        This includes all messsage types handled by handlers and collectors in
+        handler and process arguments as well as dynamically added messages from
+        collectors that are defined at runtime (i.e. in task or handler
+        implementations).
+        """
 
         # We use sets to avoid duplicates.
         result = set(self.__handler_manager.handled_message_types)
@@ -88,10 +118,15 @@ class Process:
         return result
 
     async def handle_message(self, message: Message) -> int:
-        """Verarbeitet eine Nachricht.
+        """Handles a message.
 
+        Calls all handlers and notifies all collectors that take messages of the
+        type of ``message``.
+
+        Parameters:
+            message: The message to handle.
         Returns:
-           The number of handlers that were run.
+            The number of handlers that were run.
         """
 
         static_handlers_run = await self.__handler_manager.handle_message(message)
@@ -114,35 +149,57 @@ class Process:
         return static_handlers_run + dynamic_handlers_run
 
     async def on_start(self):
-        """Standard-Implementation, die alle Tasks startet, welche noch nicht gestarted wurden."""
+        """A callback that gets called after the process has been started.
+
+        This callback is tasked with starting the process' tasks.  The default
+        implementation just starts all registered tasks once.  User
+        implementations are free to start only some of the registered tasks
+        (useful if one task performs the setup for other tasks) or multiple
+        instances of a given task.
+        """
 
         for task in self.__task_manager.registered_tasks:
             if not self.__task_manager.is_task_running(task):
                 self.start_task(task)
 
     async def on_stop(self):
-        """Standard-Implementation, die alle Tasks beendet.
+        """A callback that gets called before the process is stopped.
 
-        Das da stop() die verbleibenden Tasks beendet, ist es nicht
-        notwendig, dies noch einmal hier zu tun.
+        This callback is tasked with stopping the process' tasks.  It can be
+        used to perform cleanup operations.  The default implementation does
+        nothing because all tasks that are still running after this method has
+        returned, are cancelled anyway.
         """
 
     def start_task(self, method) -> asyncio.Task:
-        """Startet den angegeben Task.
+        """Starts a new intsance of a task.
 
-        An asycio.Task object is returned that can be used to wait for the
-        task's completion or to cancel a specific instance.
+        Parameters:
+            method: The task method to start.
+        Returns: A asycio.Task object that can be used to wait for the task's
+            completion or to cancel a specific instance.
         """
 
         return self.__task_manager.start_task(method)
 
     def stop_task(self, method_or_task):
-        """Stoppt den angegeben Task."""
+        """Stops either all instances of a task or a specific instance.
+
+        Parameters:
+            method_or_task: Either the task method or a specific task instance
+                to stop.
+        """
 
         self.__task_manager.cancel_task(method_or_task)
 
     async def publish(self, message: Message):
-        """Versendet ein Nachrichtobjekt"""
+        """Publishes a message to the broker.
+
+        Parameters:
+            message: The message to publish.
+        Raises:
+            RuntimeError: If the process is not running.
+        """
 
         if self.__connection is None:
             raise RuntimeError("The process has to be started first.")
@@ -174,6 +231,14 @@ class Process:
 
         See collector() for a way to reliably receive all messages that arrive
         while a specific piece of code is executed.
+
+        Parameters:
+            message_types: The message types to wait for.
+        Returns:
+            The first message of any of the given types that arrives after the
+            method has been called.
+        Raises:
+            RuntimeError: If the process is not running.
         """
 
         if self.__connection is None:
@@ -186,7 +251,31 @@ class Process:
             await self.__remove_message_collector(message_collection)
 
     async def collector(self, *message_types: Type[Message]) -> MessageCollector:
-        """Returns an async context manager that can be used to receive messages."""
+        """Returns an async context manager that can be used to receive messages.
+
+        This can be used to receive messages in tasks.  In contrast to
+        :py:meth:`wait_for`, this method can be used to receive messages in a
+        continuous manner.
+
+        The returned context manager can be used in an ``async with`` statement
+        to receive messages.  The context manager returns the received messages
+        in the order they arrive.  If multiple message types are given, the
+        context manager returns any message of any of the given types.
+
+        Parameters:
+            message_types: The message types to wait for.
+        Returns:
+            An async context manager that can be used to receive messages.
+        Raises:
+            RuntimeError: If the process is not running.
+        Example:
+
+            async with process.collector(Message1, Message2) as collector:
+                while True:
+                    message = await collector.get()
+                    # do something with message
+
+        """
 
         if self.__connection is None:
             raise RuntimeError("The process has to be started first.")

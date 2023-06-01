@@ -1,3 +1,13 @@
+"""Task management.
+
+Tasks are long running coroutines that are part of a process.  This module
+contains functionality related to the management of tasks.
+
+Tasks should not be confused with ``asyncio.Task`` instansces.  In this module,
+is a coroutine that gets started.  A ``asyncio.Task`` instance is used to manage
+running tasks.
+"""
+
 import asyncio
 import inspect
 import logging
@@ -27,6 +37,17 @@ Task = Callable[..., Coroutine[None, None, None]]
 
 @dataclass
 class TaskData:
+    """Data about a task.
+
+    Internal to this module.
+
+    Attributes:
+        collector_message_types: The message types collected by the task.
+        running_instances: The running instances of the task.
+        instance_count: The number of instances of the task that have been
+            started in total.
+    """
+
     # Keys are the name of the parameter and values are the type of
     # the message classes collected in a collector instance that
     # will get passed to the task when it is started.
@@ -36,6 +57,11 @@ class TaskData:
 
 
 class TaskManager:
+    """Manage tasks.
+
+    This class is used to maintain a list of tasks.
+    """
+
     def __init__(
         self,
         process_name: str,
@@ -51,22 +77,44 @@ class TaskManager:
 
     @property
     def registered_tasks(self) -> Iterable[Task]:
+        """Return the tasks registered to ``self``."""
+
         return self._tasks.keys()
 
     def get_running_instance_count(self, task: Task) -> int:
-        """Return the number of running instances of a task."""
+        """Return the number of running instances of a task.
+
+        Parameters:
+            task: The task to get the number of running instances of.
+        Returns:
+            The number of running instances of the task.
+        """
 
         if task not in self._tasks:
             raise ValueError('Task "%s" is not registered', task.get_name())
         return len(self._tasks[task].running_instances)
 
     def is_task_running(self, task: Task) -> bool:
-        """Return True if the task is currently running."""
+        """Return True if the task is currently running.
+
+        Parameters:
+            task: The task to check.
+        Returns:
+            ``True`` if at least one instance of the task is currently running.
+        """
 
         return self.get_running_instance_count(task) > 0
 
     def register_task(self, task: Task):
-        """Register a task with this task manager."""
+        """Register a task with this task manager.
+
+        The task gets added to the internal list of tasks.
+
+        Parameters:
+            task: The task to register.
+        Raises:
+            ValueError: If the task is already registered.
+        """
 
         message_types = _get_collector_message_types(task)
         if task in self._tasks:
@@ -112,7 +160,16 @@ class TaskManager:
         return asyncio_task
 
     def cancel_task(self, task: Task | asyncio.Task):
-        """Cancel all instances of a task."""
+        """Cancel all instances of a task or a specific instance.
+
+        Cancels all instances if a task is passed.  If a asyncio.Task object is
+        passed, only it gets cancelled.
+
+        Parameters:
+            task: The task or task instance to cancel.
+        Raises:
+            ValueError: If the task or task instance is not registered.
+        """
 
         if isinstance(task, Task):
             if task not in self._tasks:
@@ -137,7 +194,7 @@ class TaskManager:
             raise ValueError("The argument is not a valid task or task instance")
 
     def cancel_all_tasks(self):
-        """Cancel all tasks."""
+        """Cancel all running tasks."""
 
         _log.debug("Cancelling all running tasks")
         for task in self._tasks:
@@ -151,12 +208,16 @@ class TaskManager:
 
 
 def _get_task_name(task: Task) -> str:
+    """Return a string uniquely identifying a task task."""
+
     return task.__name__  # returns the method name
 
 
 def _get_task_instance_name(
     task: Task, process_name: str, current_instance_count: int
 ) -> str:
+    """Return a string uniquely identifying a task instance."""
+
     return f"{process_name}-task-{_get_task_name(task)}-{current_instance_count}"
 
 
@@ -165,11 +226,20 @@ def _get_collector_message_types(
 ) -> Iterable[Tuple[str, Tuple[Type[Message]]]]:
     """Return a list of the message types mapping to each collector parameter.
 
-    Say, a task has the following signature:
+    Example:
 
-        async def task(collector1: MessageCollector[Message1, Message2], collector2: MessageCollector[Message3])
+        Say, a task has the following signature::
 
-    Then this function will return [(collector1, Union[Message1, Message2]), (collector2, Message3)].
+            async def task(collector1: MessageCollector[Message1, Message2], collector2: MessageCollector[Message3])
+
+        Then this function will return [(collector1, Union[Message1, Message2]), (collector2, Message3)].
+
+    Parameters:
+        task: The task to get the message types for.
+    Returns:
+        An iterable over tuples of the form (collector_name, message_types)
+        extracted from the function parameters of the coroutine defining the
+        task.
     """
 
     # Using typing.get_type_hints() would simplify this function a lot, but it

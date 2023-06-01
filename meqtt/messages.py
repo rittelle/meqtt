@@ -1,3 +1,5 @@
+"""Classes, function and decorators related to message object."""
+
 import dataclasses
 import inspect
 import json
@@ -16,7 +18,12 @@ _message_classes = []
 
 
 class MessageType(Enum):
-    """The type of a message."""
+    """The type of a message.
+
+    Attributes:
+        MESSAGE: A general message.
+        STATE: A state message.
+    """
 
     MESSAGE = "message"
     STATE = "state"
@@ -31,19 +38,40 @@ class Message(ABC):
     """Base class for all message object.
 
     Inheriting classes are also assumed to be dataclasses.
+
+    Attributes:
+        topic_pattern: Describes the topic(s) this class maps to.  It is a
+            format string with zeor or more placeholders.
+        message_type: The type of the message.
+        _topic_parser: The parser used to parse the topic (interal).
     """
 
     topic_pattern: str
-    _topic_parser: parse.Parser
     message_type: MessageType
+    _topic_parser: parse.Parser
 
     @property
     def topic(self) -> str:
+        """The topic this specific instance maps to.
+
+        This only applies to the object itself, not to the class.  The topic is
+        always a single topic while :py:attr:`topic_pattern` can contain
+        placeholders and wildcards.
+        """
+
         return self.topic_pattern.format_map(dataclasses.asdict(self))
 
     @classmethod
     @property
     def topic_mask(cls) -> str:
+        """A MQTT topic mask that matches at least all topics this class maps to.
+
+        The topic pattern can be more specific than the topic mask.  For example,
+        the topic pattern ``foo/{bar:d}`` has the topic mask ``foo/+``.  The
+        mask matches any string in this example while the pattern only matches
+        numbers in the placeholder segment.
+        """
+
         split_path = cls.topic_pattern.split("/")
         # replace formatting specifiers with a wildcard
         topic_filter = [
@@ -55,7 +83,17 @@ class Message(ABC):
 
 
 def _get_message_variable(message) -> Dict[str, Any]:
-    """Returns the members that are not part of the topic as a dict."""
+    """Returns the members that are not part of the topic as a dict.
+
+    Variables that are part of the topic are not sent as part of the message
+    body as this would be duplication.  This function takes a message object and
+    returns its members that are not part of the topic as a dict.
+
+    Parameters:
+        message: The message object to get the variables from.
+    Returns:
+        A dict with the variables that are not part of the topic.
+    """
 
     named_fields = message._topic_parser.named_fields
     return {
@@ -66,8 +104,14 @@ def _get_message_variable(message) -> Dict[str, Any]:
 
 
 def to_json(message: Message) -> Tuple[str, str]:
-    """Converts a message object to a JSON string.
+    """Serialize a message object to a JSON string.
 
+    Also generate the specific topic for this message object.
+
+    Parameters:
+        message: A message object.
+    Returns:
+        A tuple with the topic and the JSON string.
     Raises:
         ValueError: If the message could not be converted to JSON.
     """
@@ -84,7 +128,17 @@ def to_json(message: Message) -> Tuple[str, str]:
 
 
 def from_json(topic: str, input: str) -> Iterable[Message]:
-    """This may return multiple messages if topic patterns overlap."""
+    """Deserialize a JSON string to zero or more message objects.
+
+    This may return multiple messages if topic patterns overlap.
+
+    Parameters:
+        topic: The topic the message was received on.
+        input: The JSON string.
+    Returns:
+        An iterable of message objects that map to the topic and where a
+        deserialization was successful.
+    """
     # TODO: Handle non-trivial types
     # TODO: Error handling
 

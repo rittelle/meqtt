@@ -1,3 +1,5 @@
+"""Small utility functions."""
+
 from contextlib import AsyncExitStack
 from typing import (
     AsyncContextManager,
@@ -10,7 +12,13 @@ from typing import (
 
 
 def get_type_name(type_: Type) -> str:
-    """Returns the name of the type with the full module name."""
+    """Returns the name of the type with the full module name.
+
+    Parameters:
+        type_: The type to get the name of.
+    Returns:
+        The name of the type with the full module name as a ``str``.
+    """
 
     return f"{type_.__module__}.{type_.__name__}"
 
@@ -29,14 +37,21 @@ async def call_with_async_context_managers(
     The context managers are entered in the order they are provided.  If an
     exception occurs, the context managers are exited in the reverse order.
 
-    Take the following example:
+    Example:
+        Take the following example:
 
-        await call_with_context_managers((cm1, cm2), f, 42)
+            await call_with_context_managers((cm1, cm2), f, 42)
 
-    The above is equivalent to:
+        The above is equivalent to:
 
-        async with context_manager1, context_manager2:
-            await f(42)
+            async with context_manager1, context_manager2:
+                await f(42)
+
+    Parameters:
+        context_managers: The async context managers to enter.
+        f: The function to call.
+        args: The positional arguments to pass to the function.
+        kwargs: The keyword arguments to pass to the function.
     """
 
     async with AsyncExitStack() as stack:

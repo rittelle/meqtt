@@ -1,3 +1,9 @@
+"""Functionality related to the broker connection.
+
+Mainly, this module contains the :py:class:`Connection` class which handles the
+backend connectino.
+"""
+
 from dataclasses import dataclass
 import logging
 from typing import AsyncContextManager, List, Optional, Set, Type
@@ -13,7 +19,16 @@ _log = logging.getLogger(__name__)
 
 @dataclass
 class ConnectionInfo:
-    """Where and how to connect to the MQTT broker."""
+    """Where and how to connect to the MQTT broker.
+
+    Attributes:
+        host: The hostname or IP address of the broker.
+        port: The port to connect to.
+        use_ssl: Whether to use SSL/TLS.
+        username: The username to use for authentication, optional.
+        password: The password to use for authentication, optional.  Can only be
+            set if a username is set as well.
+    """
 
     host: str
     port: int = 1883
@@ -29,6 +44,13 @@ class ConnectionInfo:
 
 
 class Connection(AsyncContextManager):
+    """A connection to the MQTT broker.
+
+    This class is an asynchronous context manager.  It can be used with the
+    ``async with`` to ensure that the connection is closed properly even if an
+    exception is thrown during its lifetime.
+    """
+
     def __init__(self, connection_info: ConnectionInfo, client_id: str):
         self._client = gmqtt.Client(client_id)
         self._connection_info = connection_info
@@ -49,6 +71,8 @@ class Connection(AsyncContextManager):
         await self.disconnect()
 
     async def connect(self):
+        """Connect to the broker."""
+
         _log.info(
             "Connecting to MQTT broker on %s on port %d",
             self._connection_info.host,
@@ -69,10 +93,22 @@ class Connection(AsyncContextManager):
         )
 
     async def disconnect(self):
+        """Disconnect from the broker."""
+
         _log.info("Disconnecting from MQTT broker")
         await self._client.disconnect()
 
     async def subscribe_to(self, message_cls: Type[Message]):
+        """Subscribe a message type.
+
+        The client will subscribe to at least the topics that the given message
+        type maps to.  See :py:meth:`Message.topic_mask` for an explanation why
+        the subscription may include more topics than needed.
+
+        Parameters:
+            message_cls: The message type to subscribe to.
+        """
+
         topic = message_cls.topic_mask
         _log.debug(
             'Message type %s matches to topic "%s"',
@@ -83,6 +119,14 @@ class Connection(AsyncContextManager):
         self._client.subscribe(topic, qos=2)
 
     async def unsubscribe_from(self, message_cls: Type[Message]):
+        """Unsubscribe a message type.
+
+        Inverse to :py:meth:`subscribe_to`.
+
+        Parameters:
+            message_cls: The message type to unsubscribe from.
+        """
+
         topic = message_cls.topic_mask
         _log.debug(
             'Message type %s matches to topic "%s"',
@@ -93,6 +137,15 @@ class Connection(AsyncContextManager):
         self._client.unsubscribe(topic)
 
     async def publish(self, message: Message):
+        """Publish a message on the Broker.
+
+        Other connected clients that are subscribed to the topic to the same
+        message type should receive a copy of the message.
+
+        Parameters:
+            message: The message to publish.
+        """
+
         topic, payload = to_json(message)
         _log.debug('Publishing message on topic "%s" with payload %s', topic, payload)
         match message.message_type:
@@ -106,6 +159,16 @@ class Connection(AsyncContextManager):
                 raise ValueError(f"Unknown message type {message.message_type}")
 
     async def register_process(self, process: Process):
+        """Register a process with this connection.
+
+        The process will be registered as a handler for all message types that
+        it handles.  Messages published by the process are sent over this
+        connection.
+
+        Parameters:
+            process: The process to register.
+        """
+
         message_classes = list(process.handled_message_classes)
         _log.info(
             "Registering process %s which handles %d message types",
@@ -117,6 +180,14 @@ class Connection(AsyncContextManager):
             await self.add_process_subscription(process, message_cls)
 
     async def deregister_process(self, process: Process):
+        """Deregister a process from this connection.
+
+        The inverse to :py:meth:`register_process`.
+
+        Parameters:
+            process: The process to deregister.
+        """
+
         message_classes = list(process.handled_message_classes)
         _log.info(
             "Deregistering process %s which handles message type %s",
@@ -132,6 +203,16 @@ class Connection(AsyncContextManager):
     async def add_process_subscription(
         self, process: Process, message_cls: Type[Message]
     ):
+        """Add a subscription for a message type.
+
+        Subscribe to the topic that the message type maps to if this is not
+        already the case.
+
+        Parameters:
+            process: The process that this subscription is for.
+            message_cls: The message type to subscribe to.
+        """
+
         if process not in self._processes:
             raise ValueError(
                 f"Process {process.name} is not registered with this connection"
@@ -157,6 +238,16 @@ class Connection(AsyncContextManager):
     async def remove_process_subscription(
         self, process: Process, message_cls: Type[Message]
     ):
+        """Remove a subscription for a message type.
+
+        The inverse to :py:meth:`add_process_subscription`.  If the message type
+        is still required by another process, it will not be unsubscribed from.
+
+        Parameters:
+            process: The process that this subscription is for.
+            message_cls: The message type to unsubscribe from.
+        """
+
         if process not in self._processes:
             raise ValueError(
                 f"Process {process.name} is not registered with this connection"
@@ -182,6 +273,16 @@ class Connection(AsyncContextManager):
     def _is_message_type_subscription_required(
         self, message_cls: Type[Message], excluded_processes: Set[Process] = set()
     ):
+        """Check if a subscription for a message type is required.
+
+        Required means in this case that a new subscription is required to
+        listen to the given message type.
+
+        Returns:
+            True if a subscription for the message type is required, False
+            otherwise.
+        """
+
         return any(
             message_cls in p.handled_message_classes
             for p in self._processes
@@ -189,9 +290,13 @@ class Connection(AsyncContextManager):
         )
 
     def _on_connect(self, client, flags, rc, properties):
+        """Callback for when the client connects to the broker."""
+
         _log.info("Successfully connected to MQTT broker with result code %s", rc)
 
     async def _on_message(self, client, topic, payload: bytes, qos, properties):
+        """Callback for when the client receives a message from the broker."""
+
         try:
             payload_str = payload.decode("utf-8")
         except UnicodeError:
@@ -231,7 +336,11 @@ class Connection(AsyncContextManager):
         return int(gmqtt.constants.PubRecReasonCode.SUCCESS)
 
     def _on_disconnect(self, client, packet, exc=None):
+        """Callback for when the client disconnects from the broker."""
+
         _log.info("Succesfully disconnected from MQTT broker")
 
     def _on_subscribe(self, client, mid, qos, properties):
+        """Callback for when the client has subscribed to a topic."""
+
         _log.info("Successfully subscribed")
