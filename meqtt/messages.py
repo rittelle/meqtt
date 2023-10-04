@@ -88,7 +88,7 @@ def from_json(topic: str, input: str) -> Iterable[Message]:
     try:
         message = json.loads(input)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"Invalid JSON: {exc.msg}") from exc
+        raise ValueError(f"Invalid JSON: {exc}") from exc
 
     for cls in _message_classes:
         # Check if the topic matches the pattern.
