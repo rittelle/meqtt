@@ -1,12 +1,16 @@
 import dataclasses
-from enum import Enum
+import inspect
 import json
+import logging
 import re
 from abc import ABC
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Dict, Iterable, Tuple, Type, dataclass_transform
 
 import parse
+
+logger = logging.getLogger(__name__)
 
 _message_classes = []
 
@@ -92,13 +96,37 @@ def from_json(topic: str, input: str) -> Iterable[Message]:
 
     for cls in _message_classes:
         # Check if the topic matches the pattern.
-        if (result := cls._topic_parser.parse(topic)) is None:
+        result = cls._topic_parser.parse(topic)
+        if result is None:
             continue
 
         # Extract variables from the topic.
         topic_variables = result.named
 
-        yield cls(**(topic_variables | message))
+        arguments = topic_variables | message
+        argument_names = set(arguments.keys())
+
+        # Get all keyword-arguments of the constructur to see if they match the
+        # topic variables.
+        parameter_names = set(inspect.signature(cls).parameters.keys())
+
+        additional_args = argument_names - parameter_names
+        if additional_args:
+            error = f"Message {cls.__name__} does not contain the following fields that appear in a received message on topic {topic}: {','.join(additional_args)}"
+            logger.warning(error)
+
+        missing_args = parameter_names - argument_names
+        if missing_args:
+            error = f"Message {cls.__name__} requires the following fields that are not present in a received message on topic {topic}: {','.join(missing_args)}"
+            logger.warning(error)
+            raise ValueError(error)
+        yield cls(
+            **{
+                name: value
+                for name, value in arguments.items()
+                if name in parameter_names
+            }
+        )
 
 
 # Interestingly, this decorator has to be applied to the function returning the
