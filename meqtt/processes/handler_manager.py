@@ -66,7 +66,13 @@ class HandlerManager:
         for message_type in _get_handled_message_types(handler):
             self._message_handlers[message_type].add(handler)
 
-    async def handle_message(self, message: Message):
+    async def handle_message(self, message: Message) -> int:
+        """Handle a message.
+
+        Returns:
+            The number of handlers that handled the message.
+        """
+
         message_type = type(message)
         handlers = list(self._message_handlers.get(message_type, []))
         _log.debug(
@@ -74,6 +80,7 @@ class HandlerManager:
             message.topic,
             len(handlers),
         )
+        handlers_activated = 0
         async with asyncio.TaskGroup() as tg:
             for handler in handlers:
                 handler_data = self._handlers[handler]
@@ -83,6 +90,8 @@ class HandlerManager:
                 task = tg.create_task(handler(message), name=name)
                 handler_data.running_instances.add(task)
                 handler_data.instance_count += 1
+                handlers_activated += 1
+        return handlers_activated
 
     def cancel_all_handlers(self):
         """Cancel all tasks."""

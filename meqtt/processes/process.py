@@ -87,11 +87,14 @@ class Process:
             result |= message_collection.message_types
         return result
 
-    async def handle_message(self, message: Message) -> bool:
-        """Verarbeitet eine Nachricht."""
+    async def handle_message(self, message: Message) -> int:
+        """Verarbeitet eine Nachricht.
 
-        message_handled = False
-        await self.__handler_manager.handle_message(message)
+        Returns:
+           The number of handlers that were run.
+        """
+
+        static_handlers_run = await self.__handler_manager.handle_message(message)
         dynamic_handlers_run = 0
         dynamic_handlers_total = len(self.__message_collectors)
         for message_collection in self.__message_collectors:
@@ -103,13 +106,12 @@ class Process:
                 dynamic_handlers_run,
                 dynamic_handlers_total,
             )
-            message_handled = True
         else:
             _log.debug(
                 "None of the %d dynamic handlers handled this message",
                 dynamic_handlers_total,
             )
-        return message_handled
+        return static_handlers_run + dynamic_handlers_run
 
     async def on_start(self):
         """Standard-Implementation, die alle Tasks startet, welche noch nicht gestarted wurden."""
